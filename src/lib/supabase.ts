@@ -1,0 +1,144 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+export type Profile = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  role: 'admin' | 'faculty' | 'student' | 'standard';
+  student_year: '1st_year' | '2nd_year' | 'final_year' | null;
+  avatar_url: string | null;
+  phone: string | null;
+  address: string | null;
+  bio: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Notice = {
+  id: string;
+  title: string;
+  content: string;
+  category: 'academic' | 'event' | 'general' | 'urgent' | 'financial';
+  priority: 'high' | 'medium' | 'low';
+  author_id: string | null;
+  is_published: boolean;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Teacher = {
+  id: string;
+  full_name: string;
+  qualification: string | null;
+  address: string | null;
+  subject_in_charge: string | null;
+  photo_url: string | null;
+  is_current: boolean;
+  display_order: number;
+  joined_at: string | null;
+  left_at: string | null;
+  bio: string | null;
+  created_at: string;
+};
+
+export type Download = {
+  id: string;
+  title: string;
+  description: string | null;
+  file_url: string;
+  category: 'academic_calendar' | 'syllabus' | 'application_form' | 'result' | 'general' | 'policy';
+  semester: string | null;
+  file_size_kb: number | null;
+  uploaded_by: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
+export type Photo = {
+  id: string;
+  title: string | null;
+  description: string | null;
+  image_url: string;
+  album: string | null;
+  uploaded_by: string | null;
+  is_published: boolean;
+  created_at: string;
+};
+
+export type ForumPost = {
+  id: string;
+  title: string;
+  content: string;
+  author_id: string;
+  category: string | null;
+  is_pinned: boolean;
+  is_locked: boolean;
+  reply_count: number;
+  created_at: string;
+  updated_at: string;
+  author?: Profile;
+};
+
+export type ForumReply = {
+  id: string;
+  post_id: string;
+  content: string;
+  author_id: string;
+  created_at: string;
+  updated_at: string;
+  author?: Profile;
+};
+
+export type Application = {
+  id: string;
+  user_id: string | null;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  dob: string | null;
+  gender: 'male' | 'female' | 'other' | null;
+  address: string | null;
+  applying_for: string | null;
+  previous_education: string | null;
+  church_name: string | null;
+  pastor_name: string | null;
+  statement: string | null;
+  status: 'pending' | 'reviewed' | 'accepted' | 'rejected';
+  review_notes: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+};
+
+export type Transaction = {
+  id: string;
+  user_id: string;
+  season: string;
+  amount: number;
+  payment_date: string;
+  payment_method: 'cash' | 'bank_transfer' | 'online' | 'cheque';
+  reference_no: string | null;
+  notes: string | null;
+  recorded_by: string | null;
+  created_at: string;
+  user?: Profile;
+};
+
+export type SiteSetting = {
+  id: string;
+  setting_key: string;
+  setting_value: string;
+  setting_type: 'image' | 'text' | 'json';
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+};
