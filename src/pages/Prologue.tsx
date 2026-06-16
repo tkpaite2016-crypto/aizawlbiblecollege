@@ -1,4 +1,4 @@
-import { BookOpen, ArrowRight, Target, Heart, Globe, Users, Award, Church } from 'lucide-react';
+import { BookOpen, ArrowRight, Globe, Users, Award } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const objectives = [

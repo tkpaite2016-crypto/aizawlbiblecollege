@@ -7,6 +7,8 @@ type AuthContextType = {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  profileLoading: boolean;
+  profileError: string | null;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
@@ -16,6 +18,8 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  profileLoading: false,
+  profileError: null,
   signOut: async () => {},
   refreshProfile: async () => {},
 });
@@ -25,14 +29,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   async function fetchProfile(userId: string) {
-    const { data } = await supabase
+    setProfileLoading(true);
+    setProfileError(null);
+
+    // Check that the client has an active session before querying
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .maybeSingle();
-    setProfile(data ?? null);
+
+    if (error) {
+      const msg = `DB error: ${error.message} (code: ${error.code}) — session uid: ${currentSession?.user?.id ?? 'none'}`;
+      console.error('[fetchProfile]', msg);
+      setProfileError(msg);
+    } else if (!data) {
+      // Row not found — try by email as a fallback
+      const email = currentSession?.user?.email;
+      if (email) {
+        const { data: byEmail, error: emailErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+        if (byEmail && !emailErr) {
+          setProfile(byEmail);
+          setProfileLoading(false);
+          return;
+        }
+      }
+      setProfileError(`No profile row found for user ID: ${userId}`);
+      console.warn('[fetchProfile] No profile found for', userId);
+    } else {
+      setProfile(data);
+    }
+
+    setProfileLoading(false);
   }
 
   async function refreshProfile() {
@@ -41,27 +79,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => setLoading(false));
-      } else {
+      (async () => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchProfile(session.user.id);
+        }
         setLoading(false);
-      }
+      })();
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        (async () => {
+      if (event === 'INITIAL_SESSION') return;
+      (async () => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
           await fetchProfile(session.user.id);
-          setLoading(false);
-        })();
-      } else {
-        setProfile(null);
+        } else {
+          setProfile(null);
+          setProfileError(null);
+        }
         setLoading(false);
-      }
+      })();
     });
 
     return () => subscription.unsubscribe();
@@ -72,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, profile, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, loading, profileLoading, profileError, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

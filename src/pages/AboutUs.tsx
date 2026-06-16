@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { BookOpen, Target, Eye, Heart, Award, Users, MapPin, Calendar } from 'lucide-react';
-import { supabase, SiteSetting } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 function AnimatedCounter({ value, label, icon: Icon }: { value: number; label: string; icon: React.ElementType }) {
   const [count, setCount] = useState(0);

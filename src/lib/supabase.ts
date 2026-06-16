@@ -117,6 +117,37 @@ export type Application = {
   review_notes: string | null;
   submitted_at: string;
   reviewed_at: string | null;
+  // Extended fields
+  course_applied: 'BTh' | 'DipTh' | 'CTh' | null;
+  pin_code: string | null;
+  guardian_name: string | null;
+  parent_occupation: string | null;
+  annual_income: string | null;
+  mother_tongue: string | null;
+  other_languages: string | null;
+  marital_status: 'single' | 'married' | null;
+  academic_qualifications: { class_name: string; school_college: string; pass_fail: string; year: string }[];
+  born_again: string | null;
+  water_baptism_date: string | null;
+  denomination: string | null;
+  church_involvement: string | null;
+  statement_of_purpose: string | null;
+  calling_aim: string | null;
+  practices_vices: boolean | null;
+  can_pay_fees: boolean | null;
+  fee_sponsor: 'self' | 'guardian' | 'church' | null;
+  passport_photo_url: string | null;
+  signature_data_url: string | null;
+};
+
+export type ContactMessage = {
+  id: string;
+  name: string;
+  email: string;
+  subject: string | null;
+  message: string;
+  is_read: boolean;
+  submitted_at: string;
 };
 
 export type Transaction = {

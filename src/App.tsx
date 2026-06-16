@@ -76,7 +76,7 @@ export default function App() {
           />
           <Route
             path="/transactions"
-            element={<ProtectedRoute requiredRole={['admin']}><Transaction /></ProtectedRoute>}
+            element={<ProtectedRoute requiredRole={['admin', 'faculty', 'student']}><Transaction /></ProtectedRoute>}
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -41,8 +41,6 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const isActive = (path: string) => location.pathname === path;
-
   return (
     <header
       className={`sticky top-0 z-50 transition-all duration-300 ${
@@ -158,6 +156,16 @@ export default function Navbar() {
                         </Link>
                       </>
                     )}
+                    {profile?.role === 'faculty' && (
+                      <Link to="/transactions" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <CreditCard className="w-4 h-4" /> Fee Transactions
+                      </Link>
+                    )}
+                    {profile?.role === 'student' && (
+                      <Link to="/transactions" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                        <CreditCard className="w-4 h-4" /> My Payments
+                      </Link>
+                    )}
                     <button
                       onClick={signOut}
                       className="flex items-center gap-2 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 border-t border-slate-100 mt-1"
@@ -254,6 +262,16 @@ export default function Navbar() {
                           <CreditCard className="w-4 h-4" /> Transactions
                         </Link>
                       </>
+                    )}
+                    {profile?.role === 'faculty' && (
+                      <Link to="/transactions" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/10 rounded-lg">
+                        <CreditCard className="w-4 h-4" /> Fee Transactions
+                      </Link>
+                    )}
+                    {profile?.role === 'student' && (
+                      <Link to="/transactions" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/10 rounded-lg">
+                        <CreditCard className="w-4 h-4" /> My Payments
+                      </Link>
                     )}
                     <button
                       onClick={signOut}

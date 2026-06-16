@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { User, Mail, Phone, MapPin, Edit2, Save, X, Camera, BookOpen, Calendar } from 'lucide-react';
+import { User, Mail, Phone, MapPin, CreditCard as Edit2, Save, X, Camera, BookOpen, Calendar, Loader, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Profile() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, profileLoading, profileError, refreshProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({
     full_name: profile?.full_name ?? '',
@@ -16,6 +16,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   function openEdit() {
     setForm({
@@ -44,7 +45,56 @@ export default function Profile() {
     setTimeout(() => setSaved(false), 2500);
   }
 
-  if (!profile) return null;
+  async function handleRetry() {
+    setRetrying(true);
+    await refreshProfile();
+    setRetrying(false);
+  }
+
+  if (profileLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-slate-500">
+          <Loader className="w-8 h-8 animate-spin text-gold-500" />
+          <p className="text-sm">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+        <div className="card max-w-sm w-full p-8 text-center">
+          <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <User className="w-7 h-7 text-slate-400" />
+          </div>
+          <h2 className="text-lg font-serif font-bold text-navy-900 mb-2">Profile unavailable</h2>
+          {profileError ? (
+            <p className="text-xs font-mono bg-slate-100 border border-slate-200 rounded-lg p-3 mb-4 text-slate-700 text-left break-all">
+              {profileError}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-500 mb-6">
+              Your profile could not be loaded. This can happen after a fresh login — please try again.
+            </p>
+          )}
+          <button
+            onClick={handleRetry}
+            disabled={retrying}
+            className="btn-primary w-full justify-center"
+          >
+            {retrying ? (
+              <Loader className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            {retrying ? 'Retrying...' : 'Retry'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const roleBadge: Record<string, string> = {
     admin: 'bg-red-100 text-red-700',

@@ -1,17 +1,47 @@
 import { useState } from 'react';
-import { MapPin, Mail, Phone, Facebook, Youtube, Instagram, MessageCircle, Send, CheckCircle } from 'lucide-react';
+import { MapPin, Mail, Facebook, Youtube, Instagram, MessageCircle, Send, CheckCircle, Loader, AlertCircle } from 'lucide-react';
 
 export default function ContactUs() {
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
   const [sent, setSent] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSent(true);
+    setSubmitError('');
+    setSubmitting(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-contact-email`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            name: form.name,
+            email: form.email,
+            subject: form.subject || undefined,
+            message: form.message,
+          }),
+        },
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed (${res.status})`);
+      }
+      setSent(true);
+    } catch (err: unknown) {
+      setSubmitError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -62,8 +92,8 @@ export default function ContactUs() {
                   </div>
                   <div>
                     <p className="font-semibold text-navy-900 text-sm mb-1">Email</p>
-                    <a href="mailto:info@aizawlbiblecollege.edu" className="text-navy-700 hover:text-navy-900 text-sm">
-                      info@aizawlbiblecollege.edu
+                    <a href="mailto:aizawlbiblecollege@gmail.com" className="text-navy-700 hover:text-navy-900 text-sm">
+                      aizawlbiblecollege@gmail.com
                     </a>
                   </div>
                 </div>
@@ -81,7 +111,7 @@ export default function ContactUs() {
                     <Facebook className="w-5 h-5 text-white" />
                   </a>
                   <a
-                    href="https://youtube.com/c/@AizawlBibleCollege"
+                    href="https://youtube.com/@AizawlBibleCollege"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-10 h-10 rounded-xl bg-red-600 flex items-center justify-center hover:bg-red-700 transition-colors"
@@ -122,22 +152,48 @@ export default function ContactUs() {
                   </div>
                   <h3 className="text-xl font-serif font-bold text-navy-900 mb-2">Message Sent!</h3>
                   <p className="text-slate-600">Thank you for reaching out. We'll get back to you soon.</p>
-                  <button onClick={() => { setSent(false); setForm({ name: '', email: '', subject: '', message: '' }); }} className="btn-primary mt-6">
+                  <button
+                    onClick={() => { setSent(false); setForm({ name: '', email: '', subject: '', message: '' }); }}
+                    className="btn-primary mt-6"
+                  >
                     Send Another Message
                   </button>
                 </div>
               ) : (
                 <div className="card p-6 md:p-8">
                   <h2 className="text-xl font-serif font-bold text-navy-900 mb-6">Send Us a Message</h2>
+
+                  {submitError && (
+                    <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4 text-red-700 text-sm">
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      {submitError}
+                    </div>
+                  )}
+
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="label">Your Name *</label>
-                        <input name="name" value={form.name} onChange={handleChange} className="input-field" placeholder="Full Name" required />
+                        <input
+                          name="name"
+                          value={form.name}
+                          onChange={handleChange}
+                          className="input-field"
+                          placeholder="Full Name"
+                          required
+                        />
                       </div>
                       <div>
                         <label className="label">Email Address *</label>
-                        <input type="email" name="email" value={form.email} onChange={handleChange} className="input-field" placeholder="you@example.com" required />
+                        <input
+                          type="email"
+                          name="email"
+                          value={form.email}
+                          onChange={handleChange}
+                          className="input-field"
+                          placeholder="you@example.com"
+                          required
+                        />
                       </div>
                     </div>
                     <div>
@@ -154,10 +210,26 @@ export default function ContactUs() {
                     </div>
                     <div>
                       <label className="label">Message *</label>
-                      <textarea name="message" value={form.message} onChange={handleChange} rows={6} className="input-field resize-none" placeholder="Write your message here..." required />
+                      <textarea
+                        name="message"
+                        value={form.message}
+                        onChange={handleChange}
+                        rows={6}
+                        className="input-field resize-none"
+                        placeholder="Write your message here..."
+                        required
+                      />
                     </div>
-                    <button type="submit" className="btn-primary w-full justify-center py-3 text-base">
-                      <Send className="w-4 h-4" /> Send Message
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="btn-primary w-full justify-center py-3 text-base"
+                    >
+                      {submitting ? (
+                        <><Loader className="w-4 h-4 animate-spin" /> Sending...</>
+                      ) : (
+                        <><Send className="w-4 h-4" /> Send Message</>
+                      )}
                     </button>
                   </form>
                 </div>

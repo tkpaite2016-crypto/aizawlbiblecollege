@@ -72,9 +72,24 @@ export default function PhotoGallery() {
     if (dbErr) {
       setUploadError(dbErr.message);
     } else {
+      const newPhoto: Photo = {
+        id: crypto.randomUUID(),
+        title: uploadForm.title || null,
+        description: uploadForm.description || null,
+        album: uploadForm.album,
+        image_url: urlData.publicUrl,
+        uploaded_by: profile?.id ?? null,
+        is_published: true,
+        created_at: new Date().toISOString(),
+      };
+      setPhotos((prev) => {
+        const updated = [newPhoto, ...prev];
+        const unique = ['All', ...Array.from(new Set(updated.map((ph) => ph.album ?? 'General')))];
+        setAlbums(unique);
+        return updated;
+      });
       setShowUpload(false);
       setUploadForm({ title: '', description: '', album: 'General', file: null });
-      window.location.reload();
     }
     setUploading(false);
   }

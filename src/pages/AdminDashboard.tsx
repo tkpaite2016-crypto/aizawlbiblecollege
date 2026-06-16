@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
-  LayoutDashboard, Users, Bell, BookOpen, Image, FileText, Download,
-  Plus, Trash2, Edit, Check, X, AlertCircle, ChevronDown, Settings, Save
+  LayoutDashboard, Users, Bell, BookOpen, Image, FileText,
+  Plus, Trash2, CreditCard as EditIcon, Check, X, AlertCircle,
+  MessageSquare, Upload, Loader, Mail,
 } from 'lucide-react';
-import { supabase, Profile, Notice, Teacher, SiteSetting } from '../lib/supabase';
+import { supabase, Profile, Notice, Teacher, SiteSetting, ContactMessage } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
-type Tab = 'overview' | 'users' | 'notices' | 'teachers' | 'applications' | 'settings';
+type Tab = 'overview' | 'users' | 'notices' | 'teachers' | 'applications' | 'settings' | 'messages';
 
 function StatCard({ label, value, icon: Icon, color }: { label: string; value: number; icon: React.ElementType; color: string }) {
   return (
@@ -30,8 +31,9 @@ export default function AdminDashboard() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ users: 0, students: 0, faculty: 0, notices: 0, pending: 0 });
+  const [stats, setStats] = useState({ users: 0, students: 0, faculty: 0, notices: 0, pending: 0, unread_messages: 0 });
 
   // Notice form
   const [noticeForm, setNoticeForm] = useState({ title: '', content: '', category: 'general', priority: 'medium' });
@@ -43,9 +45,11 @@ export default function AdminDashboard() {
   const [teacherForm, setTeacherForm] = useState({ full_name: '', qualification: '', address: '', subject_in_charge: '', photo_url: '', is_current: true, bio: '' });
   const [savingTeacher, setSavingTeacher] = useState(false);
   const [showTeacherForm, setShowTeacherForm] = useState(false);
+  const [teacherPhotoUploading, setTeacherPhotoUploading] = useState(false);
+  const teacherPhotoRef = useRef<HTMLInputElement>(null);
 
-  // Site settings form
-  const [savingSettings, setSavingSettings] = useState(false);
+  // Site settings upload
+  const [settingUploading, setSettingUploading] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState('');
   const [settingsSuccess, setSettingsSuccess] = useState(false);
 
@@ -55,25 +59,28 @@ export default function AdminDashboard() {
 
   async function loadData() {
     setLoading(true);
-    const [usersRes, noticesRes, teachersRes, appsRes, settingsRes] = await Promise.all([
+    const [usersRes, noticesRes, teachersRes, appsRes, settingsRes, messagesRes] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('notices').select('*').order('created_at', { ascending: false }),
       supabase.from('teachers').select('*').order('display_order'),
       supabase.from('applications').select('*').order('submitted_at', { ascending: false }),
       supabase.from('site_settings').select('*').order('setting_key'),
+      supabase.from('contact_messages').select('*').order('submitted_at', { ascending: false }),
     ]);
     const u = usersRes.data ?? [];
     const n = noticesRes.data ?? [];
     const t = teachersRes.data ?? [];
     const a = appsRes.data ?? [];
     const s = settingsRes.data ?? [];
-    setUsers(u); setNotices(n); setTeachers(t); setApplications(a); setSiteSettings(s);
+    const m = messagesRes.data ?? [];
+    setUsers(u); setNotices(n); setTeachers(t); setApplications(a); setSiteSettings(s); setContactMessages(m);
     setStats({
       users: u.length,
       students: u.filter((x) => x.role === 'student').length,
       faculty: u.filter((x) => x.role === 'faculty').length,
       notices: n.length,
       pending: a.filter((x: any) => x.status === 'pending').length,
+      unread_messages: m.filter((x: any) => !x.is_read).length,
     });
     setLoading(false);
   }
@@ -105,6 +112,17 @@ export default function AdminDashboard() {
     setNotices((prev) => prev.filter((n) => n.id !== id));
   }
 
+  async function uploadTeacherPhoto(file: File): Promise<string | null> {
+    setTeacherPhotoUploading(true);
+    const ext = file.name.split('.').pop();
+    const fileName = `teachers/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('photos').upload(fileName, file, { upsert: true });
+    if (error) { setTeacherPhotoUploading(false); return null; }
+    const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
+    setTeacherPhotoUploading(false);
+    return data.publicUrl;
+  }
+
   async function saveTeacher(e: React.FormEvent) {
     e.preventDefault();
     setSavingTeacher(true);
@@ -125,28 +143,60 @@ export default function AdminDashboard() {
     setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
   }
 
-  async function updateSetting(key: string, value: string) {
-    setSavingSettings(true);
+  async function uploadSiteImage(key: string, file: File) {
+    setSettingUploading(key);
     setSettingsError('');
     setSettingsSuccess(false);
-    const { error } = await supabase.from('site_settings').update({ setting_value: value }).eq('setting_key', key);
-    if (error) {
-      setSettingsError(error.message);
-    } else {
-      setSiteSettings((prev) => prev.map((s) => (s.setting_key === key ? { ...s, setting_value: value } : s)));
-      setSettingsSuccess(true);
-      setTimeout(() => setSettingsSuccess(false), 2000);
+    const ext = file.name.split('.').pop();
+    const fileName = `${key}_${Date.now()}.${ext}`;
+    const { error: uploadErr } = await supabase.storage
+      .from('site-images')
+      .upload(fileName, file, { upsert: true });
+    if (uploadErr) {
+      setSettingsError(uploadErr.message);
+      setSettingUploading(null);
+      return;
     }
-    setSavingSettings(false);
+    const { data: urlData } = supabase.storage.from('site-images').getPublicUrl(fileName);
+    const { error: dbErr } = await supabase
+      .from('site_settings')
+      .update({ setting_value: urlData.publicUrl })
+      .eq('setting_key', key);
+    if (dbErr) {
+      setSettingsError(dbErr.message);
+    } else {
+      setSiteSettings((prev) =>
+        prev.map((s) => (s.setting_key === key ? { ...s, setting_value: urlData.publicUrl } : s)),
+      );
+      setSettingsSuccess(true);
+      setTimeout(() => setSettingsSuccess(false), 3000);
+    }
+    setSettingUploading(null);
   }
 
-  const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
+  async function markMessageRead(id: string) {
+    await supabase.from('contact_messages').update({ is_read: true }).eq('id', id);
+    setContactMessages((prev) => prev.map((m) => (m.id === id ? { ...m, is_read: true } : m)));
+    setStats((prev) => ({ ...prev, unread_messages: Math.max(0, prev.unread_messages - 1) }));
+  }
+
+  async function deleteMessage(id: string) {
+    await supabase.from('contact_messages').delete().eq('id', id);
+    const deleted = contactMessages.find((m) => m.id === id);
+    setContactMessages((prev) => prev.filter((m) => m.id !== id));
+    if (deleted && !deleted.is_read) {
+      setStats((prev) => ({ ...prev, unread_messages: Math.max(0, prev.unread_messages - 1) }));
+    }
+  }
+
+  const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
     { id: 'notices', label: 'Notices', icon: Bell },
     { id: 'teachers', label: 'Faculty', icon: BookOpen },
     { id: 'applications', label: 'Applications', icon: FileText },
     { id: 'settings', label: 'Site Images', icon: Image },
+    { id: 'messages', label: 'Messages', icon: MessageSquare, badge: stats.unread_messages },
   ];
 
   return (
@@ -167,7 +217,7 @@ export default function AdminDashboard() {
       <div className="page-container py-6">
         {/* Tab nav */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1 mb-6">
-          {tabs.map(({ id, label, icon: Icon }) => (
+          {tabs.map(({ id, label, icon: Icon, badge }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -175,7 +225,13 @@ export default function AdminDashboard() {
                 tab === id ? 'bg-navy-800 text-white shadow-sm' : 'text-slate-600 hover:bg-white hover:text-navy-800'
               }`}
             >
-              <Icon className="w-4 h-4" /> {label}
+              <Icon className="w-4 h-4" />
+              {label}
+              {badge != null && badge > 0 && (
+                <span className="ml-0.5 bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5 leading-none min-w-[18px] text-center">
+                  {badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -264,11 +320,14 @@ export default function AdminDashboard() {
                     <Plus className="w-4 h-4" /> Add Notice
                   </button>
                 </div>
-
                 {showNoticeForm && (
                   <div className="card p-6">
                     <h3 className="font-semibold text-navy-900 mb-4">New Notice</h3>
-                    {noticeError && <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4 text-red-700 text-sm"><AlertCircle className="w-4 h-4 mt-0.5" />{noticeError}</div>}
+                    {noticeError && (
+                      <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4 text-red-700 text-sm">
+                        <AlertCircle className="w-4 h-4 mt-0.5" />{noticeError}
+                      </div>
+                    )}
                     <form onSubmit={saveNotice} className="space-y-3">
                       <input value={noticeForm.title} onChange={(e) => setNoticeForm((f) => ({ ...f, title: e.target.value }))} className="input-field" placeholder="Notice title" required />
                       <textarea value={noticeForm.content} onChange={(e) => setNoticeForm((f) => ({ ...f, content: e.target.value }))} rows={3} className="input-field resize-none" placeholder="Notice content" required />
@@ -287,7 +346,6 @@ export default function AdminDashboard() {
                     </form>
                   </div>
                 )}
-
                 <div className="card overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -305,7 +363,11 @@ export default function AdminDashboard() {
                           <tr key={n.id} className="hover:bg-slate-50">
                             <td className="px-4 py-3 font-medium text-navy-900 max-w-xs truncate">{n.title}</td>
                             <td className="px-4 py-3 text-slate-600 capitalize">{n.category}</td>
-                            <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${n.priority === 'high' ? 'bg-red-100 text-red-700' : n.priority === 'medium' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>{n.priority}</span></td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${n.priority === 'high' ? 'bg-red-100 text-red-700' : n.priority === 'medium' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                                {n.priority}
+                              </span>
+                            </td>
                             <td className="px-4 py-3 text-slate-500 text-xs">{new Date(n.created_at).toLocaleDateString('en-IN')}</td>
                             <td className="px-4 py-3 text-right">
                               <button onClick={() => deleteNotice(n.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"><Trash2 className="w-4 h-4" /></button>
@@ -327,7 +389,6 @@ export default function AdminDashboard() {
                     <Plus className="w-4 h-4" /> Add Faculty
                   </button>
                 </div>
-
                 {showTeacherForm && (
                   <div className="card p-6">
                     <h3 className="font-semibold text-navy-900 mb-4">New Faculty Member</h3>
@@ -336,20 +397,64 @@ export default function AdminDashboard() {
                       <input value={teacherForm.qualification} onChange={(e) => setTeacherForm((f) => ({ ...f, qualification: e.target.value }))} className="input-field" placeholder="Qualification (e.g., Ph.D., Th.M.)" />
                       <input value={teacherForm.address} onChange={(e) => setTeacherForm((f) => ({ ...f, address: e.target.value }))} className="input-field" placeholder="Address" />
                       <input value={teacherForm.subject_in_charge} onChange={(e) => setTeacherForm((f) => ({ ...f, subject_in_charge: e.target.value }))} className="input-field" placeholder="Subject In Charge" />
-                      <input value={teacherForm.photo_url} onChange={(e) => setTeacherForm((f) => ({ ...f, photo_url: e.target.value }))} className="input-field" placeholder="Photo URL (optional)" />
+
+                      {/* Photo upload */}
+                      <div className="sm:col-span-2">
+                        <label className="label mb-1.5 block">Photo (optional)</label>
+                        <div className="flex items-center gap-3">
+                          {teacherForm.photo_url && (
+                            <div className="w-14 h-14 rounded-xl overflow-hidden flex-shrink-0 border border-slate-200">
+                              <img src={teacherForm.photo_url} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          )}
+                          <label
+                            htmlFor="teacher-photo-upload"
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${teacherPhotoUploading ? 'bg-slate-100 text-slate-400' : 'bg-navy-800 text-white hover:bg-navy-700'}`}
+                          >
+                            {teacherPhotoUploading
+                              ? <><Loader className="w-4 h-4 animate-spin" /> Uploading...</>
+                              : <><Upload className="w-4 h-4" /> {teacherForm.photo_url ? 'Change Photo' : 'Upload Photo'}</>
+                            }
+                          </label>
+                          <input
+                            id="teacher-photo-upload"
+                            ref={teacherPhotoRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const url = await uploadTeacherPhoto(file);
+                              if (url) setTeacherForm((f) => ({ ...f, photo_url: url }));
+                            }}
+                          />
+                          {teacherForm.photo_url && (
+                            <button
+                              type="button"
+                              onClick={() => setTeacherForm((f) => ({ ...f, photo_url: '' }))}
+                              className="text-red-500 hover:text-red-700 p-1"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
                       <div className="flex items-center gap-2">
                         <input type="checkbox" id="is_current" checked={teacherForm.is_current} onChange={(e) => setTeacherForm((f) => ({ ...f, is_current: e.target.checked }))} className="rounded" />
                         <label htmlFor="is_current" className="text-sm text-slate-700">Current Faculty</label>
                       </div>
                       <textarea value={teacherForm.bio} onChange={(e) => setTeacherForm((f) => ({ ...f, bio: e.target.value }))} rows={2} className="input-field resize-none sm:col-span-2" placeholder="Short bio (optional)" />
                       <div className="sm:col-span-2 flex gap-2">
-                        <button type="submit" disabled={savingTeacher} className="btn-primary">{savingTeacher ? 'Saving...' : 'Save Faculty'}</button>
+                        <button type="submit" disabled={savingTeacher || teacherPhotoUploading} className="btn-primary">
+                          {savingTeacher ? 'Saving...' : 'Save Faculty'}
+                        </button>
                         <button type="button" onClick={() => setShowTeacherForm(false)} className="btn-secondary">Cancel</button>
                       </div>
                     </form>
                   </div>
                 )}
-
                 <div className="card overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -365,7 +470,18 @@ export default function AdminDashboard() {
                       <tbody className="divide-y divide-slate-100">
                         {teachers.map((t) => (
                           <tr key={t.id} className="hover:bg-slate-50">
-                            <td className="px-4 py-3 font-medium text-navy-900">{t.full_name}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                {t.photo_url ? (
+                                  <img src={t.photo_url} alt="" className="w-8 h-8 rounded-full object-cover" />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-navy-100 flex items-center justify-center">
+                                    <span className="text-navy-700 text-xs font-bold">{t.full_name[0]}</span>
+                                  </div>
+                                )}
+                                <span className="font-medium text-navy-900">{t.full_name}</span>
+                              </div>
+                            </td>
                             <td className="px-4 py-3 text-slate-600">{t.qualification ?? '—'}</td>
                             <td className="px-4 py-3 text-slate-600">{t.subject_in_charge ?? '—'}</td>
                             <td className="px-4 py-3">
@@ -410,7 +526,7 @@ export default function AdminDashboard() {
                             <p className="font-medium text-navy-900">{a.full_name}</p>
                             <p className="text-slate-400 text-xs">{a.email}</p>
                           </td>
-                          <td className="px-4 py-3 text-slate-600">{a.applying_for ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-600">{a.course_applied ?? a.applying_for ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-600">{a.church_name ?? '—'}</td>
                           <td className="px-4 py-3 text-slate-500 text-xs">{new Date(a.submitted_at).toLocaleDateString('en-IN')}</td>
                           <td className="px-4 py-3">
@@ -426,7 +542,7 @@ export default function AdminDashboard() {
                               {a.status === 'pending' && (
                                 <>
                                   <button onClick={() => updateAppStatus(a.id, 'accepted')} className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Accept"><Check className="w-4 h-4" /></button>
-                                  <button onClick={() => updateAppStatus(a.id, 'reviewed')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Mark Reviewed"><Edit className="w-4 h-4" /></button>
+                                  <button onClick={() => updateAppStatus(a.id, 'reviewed')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Mark Reviewed"><EditIcon className="w-4 h-4" /></button>
                                   <button onClick={() => updateAppStatus(a.id, 'rejected')} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Reject"><X className="w-4 h-4" /></button>
                                 </>
                               )}
@@ -440,12 +556,12 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* SITE SETTINGS */}
+            {/* SITE IMAGES */}
             {tab === 'settings' && (
               <div className="space-y-4">
                 <div className="card p-6">
-                  <h2 className="font-serif font-bold text-navy-900 text-lg mb-2">Site Image Settings</h2>
-                  <p className="text-slate-500 text-sm mb-4">Update images displayed on the Home and About pages. Enter full image URLs (e.g., from Pexels, Unsplash, or your own hosting).</p>
+                  <h2 className="font-serif font-bold text-navy-900 text-lg mb-1">Site Image Settings</h2>
+                  <p className="text-slate-500 text-sm mb-5">Upload photos directly to update images displayed on the Home and About pages.</p>
 
                   {settingsError && (
                     <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg mb-4 text-red-700 text-sm">
@@ -454,58 +570,140 @@ export default function AdminDashboard() {
                   )}
                   {settingsSuccess && (
                     <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg mb-4 text-green-700 text-sm">
-                      <Check className="w-4 h-4" />Image updated successfully!
+                      <Check className="w-4 h-4" /> Image updated successfully!
                     </div>
                   )}
 
-                  <div className="space-y-6">
+                  <div className="space-y-5">
                     {siteSettings.map((setting) => (
-                      <div key={setting.id} className="border border-slate-200 rounded-lg p-4">
+                      <div key={setting.id} className="border border-slate-200 rounded-xl p-4 hover:border-slate-300 transition-colors">
                         <div className="flex items-start gap-4">
-                          <div className="w-32 h-24 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
+                          <div className="w-36 h-24 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
                             <img
                               src={setting.setting_value}
                               alt={setting.description || setting.setting_key}
                               className="w-full h-full object-cover"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'https://via.placeholder.com/128x96?text=Invalid+URL';
+                                (e.target as HTMLImageElement).style.display = 'none';
                               }}
                             />
                           </div>
-                          <div className="flex-1">
-                            <label className="block text-sm font-medium text-navy-900 mb-1">
-                              {setting.setting_key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                            </label>
-                            <p className="text-xs text-slate-500 mb-2">{setting.description}</p>
-                            <div className="flex gap-2">
-                              <input
-                                type="url"
-                                value={setting.setting_value}
-                                onChange={(e) => {
-                                  setSiteSettings((prev) =>
-                                    prev.map((s) =>
-                                      s.setting_key === setting.setting_key
-                                        ? { ...s, setting_value: e.target.value }
-                                        : s
-                                    )
-                                  );
-                                }}
-                                className="input-field text-sm flex-1"
-                                placeholder="https://example.com/image.jpg"
-                              />
-                              <button
-                                onClick={() => updateSetting(setting.setting_key, setting.setting_value)}
-                                disabled={savingSettings}
-                                className="btn-primary text-sm px-4"
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-navy-900 mb-0.5">
+                              {setting.setting_key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                            </p>
+                            <p className="text-xs text-slate-500 mb-3">{setting.description}</p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <label
+                                htmlFor={`upload-setting-${setting.setting_key}`}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
+                                  settingUploading === setting.setting_key
+                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                    : 'bg-navy-800 text-white hover:bg-navy-700'
+                                }`}
                               >
-                                {savingSettings ? 'Saving...' : 'Save'}
-                              </button>
+                                {settingUploading === setting.setting_key
+                                  ? <><Loader className="w-4 h-4 animate-spin" /> Uploading...</>
+                                  : <><Upload className="w-4 h-4" /> Upload New Image</>
+                                }
+                              </label>
+                              <input
+                                id={`upload-setting-${setting.setting_key}`}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={settingUploading !== null}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) uploadSiteImage(setting.setting_key, file);
+                                  e.target.value = '';
+                                }}
+                              />
+                              <span className="text-xs text-slate-400">JPG, PNG, WebP recommended</span>
                             </div>
                           </div>
                         </div>
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* MESSAGES */}
+            {tab === 'messages' && (
+              <div className="space-y-4">
+                <div className="card overflow-hidden">
+                  <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                    <h2 className="font-serif font-bold text-navy-900">
+                      Contact Messages ({contactMessages.length})
+                    </h2>
+                    {stats.unread_messages > 0 && (
+                      <span className="bg-red-500 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+                        {stats.unread_messages} unread
+                      </span>
+                    )}
+                  </div>
+
+                  {contactMessages.length === 0 ? (
+                    <div className="text-center py-16">
+                      <Mail className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                      <p className="text-slate-500">No messages yet.</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {contactMessages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`p-5 transition-colors ${msg.is_read ? 'bg-white' : 'bg-blue-50/40'}`}
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3 min-w-0">
+                              <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${msg.is_read ? 'bg-slate-100' : 'bg-navy-100'}`}>
+                                <span className={`text-sm font-bold ${msg.is_read ? 'text-slate-600' : 'text-navy-700'}`}>
+                                  {msg.name[0].toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-semibold text-navy-900 text-sm">{msg.name}</p>
+                                  {!msg.is_read && (
+                                    <span className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-medium">New</span>
+                                  )}
+                                  {msg.subject && (
+                                    <span className="text-xs text-slate-500 capitalize">· {msg.subject.replace(/_/g, ' ')}</span>
+                                  )}
+                                </div>
+                                <a href={`mailto:${msg.email}`} className="text-xs text-navy-600 hover:text-navy-800 transition-colors">{msg.email}</a>
+                                <p className="text-slate-700 text-sm mt-2 leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+                                <p className="text-slate-400 text-xs mt-2">
+                                  {new Date(msg.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {!msg.is_read && (
+                                <button
+                                  onClick={() => markMessageRead(msg.id)}
+                                  className="flex items-center gap-1 text-xs text-green-600 hover:text-green-800 px-2 py-1 rounded hover:bg-green-50 transition-colors"
+                                  title="Mark as read"
+                                >
+                                  <Check className="w-3.5 h-3.5" /> Read
+                                </button>
+                              )}
+                              <button
+                                onClick={() => deleteMessage(msg.id)}
+                                className="p-1.5 text-red-500 hover:text-red-700 rounded hover:bg-red-50 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

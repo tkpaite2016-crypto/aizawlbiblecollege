@@ -4,7 +4,7 @@ import {
   BookOpen, Bell, Users, Download, Image, ChevronRight,
   Award, MapPin, Calendar, Star, ArrowRight, Megaphone
 } from 'lucide-react';
-import { supabase, Notice, SiteSetting } from '../lib/supabase';
+import { supabase, Notice } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 function useCountUp(target: number, duration = 2000) {

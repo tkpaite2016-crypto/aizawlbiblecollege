@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { BookOpen, MapPin, Phone, Mail, Facebook, Youtube, Instagram, MessageCircle } from 'lucide-react';
+import { BookOpen, MapPin, Mail, Facebook, Youtube, Instagram, MessageCircle } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -96,7 +96,7 @@ export default function Footer() {
                 <Facebook className="w-4 h-4" />
               </a>
               <a
-                href="https://youtube.com/c/@AizawlBibleCollege"
+                href="https://youtube.com/@AizawlBibleCollege"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-full bg-white/10 hover:bg-red-600 flex items-center justify-center transition-colors"
