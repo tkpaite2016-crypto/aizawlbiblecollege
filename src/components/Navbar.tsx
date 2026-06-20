@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Menu, X, BookOpen, ChevronDown, User, LogOut, LayoutDashboard, CreditCard } from 'lucide-react';
+import { Menu, X, ChevronDown, User, LogOut, LayoutDashboard, CreditCard } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const navLinks = [
@@ -50,7 +50,7 @@ export default function Navbar() {
       {/* Top bar */}
       <div className="bg-gold-500 py-1 px-4 text-center">
         <p className="text-navy-950 text-xs font-medium">
-          Member of Evangelical Theological College Association - NEI &nbsp;|&nbsp; Est. 1998
+          Accredited by Pentecostal Association for Theological Accreditation (PATA) | Member of Evangelical Theological Colleges Association – NEI | Estd. 1998
         </p>
       </div>
 
@@ -58,9 +58,11 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 flex-shrink-0">
-            <div className="w-9 h-9 bg-gold-500 rounded-full flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-white" />
-            </div>
+            <img
+              src="/IMG-20260308-WA0016%20copy.png"
+              alt="Aizawl Bible College"
+              className="w-11 h-11 rounded-full object-cover border-2 border-gold-400"
+            />
             <div className="hidden sm:block">
               <p className="text-white font-serif font-bold text-base leading-tight">Aizawl Bible College</p>
               <p className="text-gold-300 text-xs leading-tight">Assemblies of God, Mizoram</p>

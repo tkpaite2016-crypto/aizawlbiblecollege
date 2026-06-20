@@ -46,18 +46,11 @@ export default function ContactUs() {
 
   return (
     <div className="page-enter">
-      <section
-        className="relative py-24 md:py-28"
-        style={{
-          backgroundImage: `linear-gradient(135deg, rgba(17,22,64,0.93) 0%, rgba(30,42,138,0.88) 100%), url('https://images.pexels.com/photos/2017748/pexels-photo-2017748.jpeg?auto=compress&cs=tinysrgb&w=1600')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="page-container text-center text-white">
-          <Mail className="w-12 h-12 text-gold-400 mx-auto mb-5" />
-          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Contact Us</h1>
-          <p className="text-slate-300 max-w-2xl mx-auto text-lg">
+      <section className="bg-navy-950 py-10 md:py-14">
+        <div className="page-container text-center">
+          <Mail className="w-9 h-9 text-gold-400 mx-auto mb-3" />
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Contact Us</h1>
+          <p className="text-slate-400 max-w-xl mx-auto text-sm">
             We'd love to hear from you. Reach out with questions, prayer requests, or inquiries.
           </p>
         </div>
@@ -92,8 +85,8 @@ export default function ContactUs() {
                   </div>
                   <div>
                     <p className="font-semibold text-navy-900 text-sm mb-1">Email</p>
-                    <a href="mailto:aizawlbiblecollege@gmail.com" className="text-navy-700 hover:text-navy-900 text-sm">
-                      aizawlbiblecollege@gmail.com
+                    <a href="mailto:aizawlbiblecollege24@gmail.com" className="text-navy-700 hover:text-navy-900 text-sm">
+                      aizawlbiblecollege24@gmail.com
                     </a>
                   </div>
                 </div>

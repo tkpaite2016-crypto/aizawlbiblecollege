@@ -184,29 +184,22 @@ export default function ApplicationForm() {
     <div className="page-enter">
 
       {/* Hero */}
-      <section
-        className="relative py-24 md:py-28"
-        style={{
-          backgroundImage: `linear-gradient(135deg, rgba(17,22,64,0.95) 0%, rgba(30,42,138,0.90) 100%), url('https://images.pexels.com/photos/4144923/pexels-photo-4144923.jpeg?auto=compress&cs=tinysrgb&w=1600')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="page-container text-center text-white">
-          <FileText className="w-12 h-12 text-gold-400 mx-auto mb-5" />
-          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Application Form</h1>
-          <p className="text-slate-300 max-w-lg mx-auto text-lg mb-6">
+      <section className="bg-navy-950 py-10 md:py-14">
+        <div className="page-container text-center">
+          <FileText className="w-9 h-9 text-gold-400 mx-auto mb-3" />
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Application Form</h1>
+          <p className="text-slate-400 max-w-lg mx-auto text-sm mb-5">
             Apply for admission to Aizawl Bible College. Fill in the form below and submit — it takes just a few minutes.
           </p>
           <a
-            href="/ApplicationForm.pdf"
+            href="public/ApplicationForm.pdf"
             download="ApplicationForm.pdf"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-6 py-3 rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors"
           >
-            <Download className="w-5 h-5" />
-            Download Application Form (PDF)
+            <Download className="w-4 h-4" />
+            Download PDF Form
           </a>
         </div>
       </section>
@@ -219,6 +212,7 @@ export default function ApplicationForm() {
           <h1 className="text-2xl md:text-3xl font-serif font-bold tracking-widest text-navy-900 uppercase">Aizawl Bible College</h1>
           <p className="text-xs text-slate-500 mt-1">Regd No: MSR 1801 of 29.07.2025</p>
           <p className="text-xs font-medium text-slate-600 italic">A Theological Institution of Assemblies of God Mizoram District</p>
+          <p className="text-xs text-slate-500 italic">Accredited by Pentecostal Association for Theological Accreditation (PATA)</p>
           <p className="text-xs text-slate-500 italic">(Member of Evangelical Theological Colleges Association – NEI)</p>
           <p className="text-xs text-slate-500 mt-1">Post Box – 115, Tuikual North 'D' Mual, Aizawl – 796001, Mizoram, India</p>
           <p className="text-xs text-slate-500">Phone: 9383007361 / 9862713689 &nbsp;|&nbsp; Email: aizawlbiblecollege24@gmail.com</p>

@@ -97,15 +97,15 @@ export default function PhotoGallery() {
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section className="bg-navy-950 py-14 md:py-18">
+      <section className="bg-navy-950 py-10 md:py-14">
         <div className="page-container flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-center sm:text-left">
-            <Image className="w-10 h-10 text-gold-400 mx-auto sm:mx-0 mb-4" />
-            <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-2">Photo Gallery</h1>
-            <p className="text-slate-400">Memories and moments from campus life.</p>
+            <Image className="w-9 h-9 text-gold-400 mx-auto sm:mx-0 mb-3" />
+            <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-1">Photo Gallery</h1>
+            <p className="text-slate-400 text-sm">Memories and moments from campus life.</p>
           </div>
           {canUpload && (
-            <button onClick={() => setShowUpload(true)} className="btn-gold flex-shrink-0">
+            <button onClick={() => setShowUpload(true)} className="btn-gold flex-shrink-0 text-sm">
               <Upload className="w-4 h-4" /> Upload Photo
             </button>
           )}

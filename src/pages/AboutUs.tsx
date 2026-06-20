@@ -87,18 +87,11 @@ export default function AboutUs() {
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section
-        className="relative py-24 md:py-32"
-        style={{
-          backgroundImage: `linear-gradient(135deg, rgba(17,22,64,0.92) 0%, rgba(30,42,138,0.88) 100%), url('${siteImages.about_hero_image || defaultImages.about_hero_image}')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="page-container text-center text-white">
-          <BookOpen className="w-12 h-12 text-gold-400 mx-auto mb-5" />
-          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">About Aizawl Bible College</h1>
-          <p className="text-slate-300 max-w-2xl mx-auto text-lg leading-relaxed">
+      <section className="bg-navy-950 py-10 md:py-14">
+        <div className="page-container text-center">
+          <BookOpen className="w-9 h-9 text-gold-400 mx-auto mb-3" />
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">About Aizawl Bible College</h1>
+          <p className="text-slate-400 max-w-xl mx-auto text-sm">
             A premier theological institution of the Assemblies of God, Mizoram District, committed to excellence in biblical education since 1998.
           </p>
         </div>
@@ -122,7 +115,7 @@ export default function AboutUs() {
                 Northeast India, and international mission fields.
               </p>
               <p className="text-slate-600 leading-relaxed">
-                As a member of the Evangelical Theological College Association (NEI), ABC maintains high standards of
+                As an accredited institution by the Pentecostal Association for Theological Accreditation (PATA) and a member of the Evangelical Theological College Association (NEI), ABC maintains high standards of
                 theological education while remaining deeply committed to Pentecostal faith and practice.
               </p>
             </div>
@@ -202,7 +195,7 @@ export default function AboutUs() {
             {[
               { icon: MapPin, label: 'Address', value: "Post Box - 115, Tuikual North 'D' Mual, Aizawl - 796001, Mizoram, India" },
               { icon: Calendar, label: 'Established', value: '1998 — Over 25 years of ministry training' },
-              { icon: Award, label: 'Affiliation', value: 'Member of Evangelical Theological College Association - NEI' },
+              { icon: Award, label: 'Affiliation', value: 'Pentecostal Association for Theological Accreditation (PATA)' },
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-start gap-4 p-5 bg-white/5 rounded-xl">
                 <div className="w-10 h-10 bg-gold-500/20 rounded-xl flex items-center justify-center flex-shrink-0">

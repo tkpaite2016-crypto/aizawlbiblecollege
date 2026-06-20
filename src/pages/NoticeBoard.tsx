@@ -50,11 +50,11 @@ export default function NoticeBoard() {
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section className="bg-navy-950 py-14 md:py-18">
+      <section className="bg-navy-950 py-10 md:py-14">
         <div className="page-container text-center">
-          <Bell className="w-10 h-10 text-gold-400 mx-auto mb-4" />
-          <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-3">Notice Board</h1>
-          <p className="text-slate-400 max-w-lg mx-auto">
+          <Bell className="w-9 h-9 text-gold-400 mx-auto mb-3" />
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Notice Board</h1>
+          <p className="text-slate-400 max-w-lg mx-auto text-sm">
             Official announcements, events, and updates from Aizawl Bible College.
           </p>
         </div>

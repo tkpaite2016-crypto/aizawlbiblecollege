@@ -21,7 +21,7 @@ export default function Footer() {
               A theological Institution of Assemblies of God Mizoram District. Equipping servants of God for ministry.
             </p>
             <p className="text-slate-500 text-xs">
-              Member of Evangelical Theological College Association - NEI
+              Accredited by Pentecostal Association for Theological Accreditation (PATA) and Member of Evangelical Theological College Association (NEI) 
             </p>
           </div>
 
@@ -78,8 +78,8 @@ export default function Footer() {
               </li>
               <li className="flex items-center gap-2.5">
                 <Mail className="w-4 h-4 text-gold-500 flex-shrink-0" />
-                <a href="mailto:aizawlbiblecollege@gmail.com" className="text-slate-400 hover:text-gold-400 text-sm transition-colors">
-                  aizawlbiblecollege@gmail.com
+                <a href="mailto:aizawlbiblecollege24@gmail.com" className="text-slate-400 hover:text-gold-400 text-sm transition-colors">
+                  aizawlbiblecollege24@gmail.com
                 </a>
               </li>
             </ul>

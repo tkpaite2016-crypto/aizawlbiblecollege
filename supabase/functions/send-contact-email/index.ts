@@ -47,7 +47,7 @@ Deno.serve(async (req: Request) => {
         },
         body: JSON.stringify({
           from: "Aizawl Bible College Contact <onboarding@resend.dev>",
-          to: ["aizawlbiblecollege@gmail.com"],
+          to: ["aizawlbiblecollege24@gmail.com"],
           subject: `New Contact Form Message: ${subjectLabel}`,
           html: `
             <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #f8f9fa; border-radius: 8px;">

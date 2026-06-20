@@ -58,18 +58,11 @@ export default function AcademicInfo() {
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section
-        className="relative py-24 md:py-32"
-        style={{
-          backgroundImage: `linear-gradient(135deg, rgba(17,22,64,0.92) 0%, rgba(30,42,138,0.88) 100%), url('https://images.pexels.com/photos/1181406/pexels-photo-1181406.jpeg?auto=compress&cs=tinysrgb&w=1600')`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="page-container text-center text-white">
-          <BookOpen className="w-12 h-12 text-gold-400 mx-auto mb-5" />
-          <h1 className="text-4xl md:text-5xl font-serif font-bold mb-4">Academic Information</h1>
-          <p className="text-slate-300 max-w-2xl mx-auto text-lg">
+      <section className="bg-navy-950 py-10 md:py-14">
+        <div className="page-container text-center">
+          <BookOpen className="w-9 h-9 text-gold-400 mx-auto mb-3" />
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Academic Information</h1>
+          <p className="text-slate-400 max-w-xl mx-auto text-sm">
             Application procedures, admission requirements, and the academic calendar.
           </p>
         </div>

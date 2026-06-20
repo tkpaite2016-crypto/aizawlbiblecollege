@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { User, Mail, Phone, MapPin, CreditCard as Edit2, Save, X, Camera, BookOpen, Calendar, Loader, RefreshCw } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { User, Mail, Phone, MapPin, CreditCard as Edit2, Save, X, Camera, BookOpen, Calendar, Loader, RefreshCw, Upload } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -17,6 +17,9 @@ export default function Profile() {
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   function openEdit() {
     setForm({
@@ -26,16 +29,62 @@ export default function Profile() {
       bio: profile?.bio ?? '',
       avatar_url: profile?.avatar_url ?? '',
     });
+    setAvatarPreview(null);
     setEditing(true);
+  }
+
+  function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview
+    const reader = new FileReader();
+    reader.onloadend = () => setAvatarPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function uploadAvatar(file: File): Promise<string | null> {
+    const ext = file.name.split('.').pop();
+    const fileName = `avatars/${profile!.id}_${Date.now()}.${ext}`;
+    const { error: uploadErr } = await supabase.storage
+      .from('photos')
+      .upload(fileName, file, { upsert: true });
+
+    if (uploadErr) {
+      setError(uploadErr.message);
+      return null;
+    }
+
+    const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
+    return data.publicUrl;
   }
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setSaving(true);
+
+    let avatarUrl = form.avatar_url;
+
+    // If there's a new file selected, upload it
+    const file = avatarInputRef.current?.files?.[0];
+    if (file) {
+      setUploadingAvatar(true);
+      const uploadedUrl = await uploadAvatar(file);
+      if (uploadedUrl) avatarUrl = uploadedUrl;
+      setUploadingAvatar(false);
+    }
+
     const { error } = await supabase
       .from('profiles')
-      .update({ ...form, updated_at: new Date().toISOString() })
+      .update({
+        full_name: form.full_name,
+        phone: form.phone,
+        address: form.address,
+        bio: form.bio,
+        avatar_url: avatarUrl,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', profile!.id);
     if (error) { setError(error.message); setSaving(false); return; }
     await refreshProfile();
@@ -205,6 +254,46 @@ export default function Profile() {
             )}
 
             <form onSubmit={saveProfile} className="space-y-4">
+              {/* Avatar upload */}
+              <div>
+                <label className="label">Profile Photo</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-xl border-2 border-slate-200 overflow-hidden bg-slate-100 flex-shrink-0">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : form.avatar_url ? (
+                      <img src={form.avatar_url} alt="Current" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <User className="w-8 h-8 text-slate-400" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                      id="avatar-upload"
+                    />
+                    <label
+                      htmlFor="avatar-upload"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg cursor-pointer transition-colors text-sm font-medium"
+                    >
+                      {uploadingAvatar ? (
+                        <Loader className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4" />
+                      )}
+                      {uploadingAvatar ? 'Uploading...' : 'Upload Photo'}
+                    </label>
+                    <p className="text-xs text-slate-400 mt-1">JPG, PNG up to 5MB</p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="label">Full Name</label>
                 <div className="relative">
@@ -230,15 +319,8 @@ export default function Profile() {
                 <label className="label">Bio</label>
                 <textarea value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} rows={3} className="input-field resize-none" placeholder="A brief bio about yourself..." />
               </div>
-              <div>
-                <label className="label">Avatar URL</label>
-                <div className="relative">
-                  <Camera className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input value={form.avatar_url} onChange={(e) => setForm((f) => ({ ...f, avatar_url: e.target.value }))} className="input-field pl-10" placeholder="https://..." />
-                </div>
-              </div>
               <div className="flex gap-2 pt-2">
-                <button type="submit" disabled={saving} className="btn-primary flex-1 justify-center">
+                <button type="submit" disabled={saving || uploadingAvatar} className="btn-primary flex-1 justify-center">
                   <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
                 </button>
                 <button type="button" onClick={() => setEditing(false)} className="btn-secondary">Cancel</button>

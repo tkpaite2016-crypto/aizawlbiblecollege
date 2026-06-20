@@ -27,11 +27,11 @@ export default function Teachers() {
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section className="bg-navy-950 py-16 md:py-20">
+      <section className="bg-navy-950 py-10 md:py-14">
         <div className="page-container text-center">
-          <BookOpen className="w-10 h-10 text-gold-400 mx-auto mb-4" />
-          <h1 className="text-4xl md:text-5xl font-serif font-bold text-white mb-3">Our Dedicated Faculty</h1>
-          <p className="text-slate-400 max-w-xl mx-auto">
+          <BookOpen className="w-9 h-9 text-gold-400 mx-auto mb-3" />
+          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Our Dedicated Faculty</h1>
+          <p className="text-slate-400 max-w-xl mx-auto text-sm">
             Meet the theologians and scholars shaping the next generation of ministry leaders.
           </p>
         </div>
