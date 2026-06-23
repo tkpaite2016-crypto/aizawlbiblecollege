@@ -13,11 +13,11 @@ export default function Prologue() {
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section className="bg-navy-950 py-10 md:py-14">
+      <section className="bg-navy-950 py-8 md:py-14">
         <div className="page-container text-center">
-          <BookOpen className="w-9 h-9 text-gold-400 mx-auto mb-3" />
-          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Prologue</h1>
-          <p className="text-slate-400 max-w-xl mx-auto text-sm">
+          <BookOpen className="w-8 h-8 md:w-9 md:h-9 text-gold-400 mx-auto mb-2 md:mb-3" />
+          <h1 className="text-xl md:text-3xl font-serif font-bold text-white mb-1 md:mb-2">Prologue</h1>
+          <p className="text-slate-400 max-w-xl mx-auto text-xs md:text-sm">
             The story, mission, and vision of Aizawl Bible College.
           </p>
         </div>

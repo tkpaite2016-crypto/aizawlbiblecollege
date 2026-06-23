@@ -3,7 +3,7 @@ import { Image, Upload, X, ChevronLeft, ChevronRight, AlertCircle, Loader } from
 import { supabase, Photo } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
-type UploadForm = { title: string; description: string; album: string; file: File | null };
+type UploadForm = { title: string; description: string; album: string; files: File[] };
 
 export default function PhotoGallery() {
   const { profile } = useAuth();
@@ -13,8 +13,9 @@ export default function PhotoGallery() {
   const [lightbox, setLightbox] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
-  const [uploadForm, setUploadForm] = useState<UploadForm>({ title: '', description: '', album: 'General', file: null });
+  const [uploadForm, setUploadForm] = useState<UploadForm>({ title: '', description: '', album: 'General', files: [] });
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [uploadError, setUploadError] = useState('');
 
   const canUpload = profile?.role === 'admin' || profile?.role === 'faculty';
@@ -44,69 +45,81 @@ export default function PhotoGallery() {
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
-    if (!uploadForm.file) return;
+    if (uploadForm.files.length === 0) return;
     setUploadError('');
     setUploading(true);
+    setUploadProgress({ current: 0, total: uploadForm.files.length });
 
-    const ext = uploadForm.file.name.split('.').pop();
-    const fileName = `gallery/${Date.now()}.${ext}`;
-    const { error: uploadErr } = await supabase.storage
-      .from('photos')
-      .upload(fileName, uploadForm.file);
+    const uploadedPhotos: Photo[] = [];
 
-    if (uploadErr) {
-      setUploadError(uploadErr.message);
-      setUploading(false);
-      return;
-    }
+    for (let i = 0; i < uploadForm.files.length; i++) {
+      const file = uploadForm.files[i];
+      setUploadProgress({ current: i + 1, total: uploadForm.files.length });
 
-    const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
-    const { error: dbErr } = await supabase.from('photos').insert({
-      title: uploadForm.title || null,
-      description: uploadForm.description || null,
-      album: uploadForm.album,
-      image_url: urlData.publicUrl,
-      uploaded_by: profile?.id,
-    });
+      const ext = file.name.split('.').pop();
+      const fileName = `gallery/${Date.now()}_${i}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from('photos').upload(fileName, file);
 
-    if (dbErr) {
-      setUploadError(dbErr.message);
-    } else {
-      const newPhoto: Photo = {
-        id: crypto.randomUUID(),
+      if (uploadErr) {
+        setUploadError(`Failed to upload ${file.name}: ${uploadErr.message}`);
+        continue;
+      }
+
+      const { data: urlData } = supabase.storage.from('photos').getPublicUrl(fileName);
+      const { error: dbErr } = await supabase.from('photos').insert({
         title: uploadForm.title || null,
         description: uploadForm.description || null,
         album: uploadForm.album,
         image_url: urlData.publicUrl,
-        uploaded_by: profile?.id ?? null,
-        is_published: true,
-        created_at: new Date().toISOString(),
-      };
+        uploaded_by: profile?.id,
+      });
+
+      if (!dbErr) {
+        uploadedPhotos.push({
+          id: crypto.randomUUID(),
+          title: uploadForm.title || null,
+          description: uploadForm.description || null,
+          album: uploadForm.album,
+          image_url: urlData.publicUrl,
+          uploaded_by: profile?.id ?? null,
+          is_published: true,
+          created_at: new Date().toISOString(),
+        });
+      }
+    }
+
+    if (uploadedPhotos.length > 0) {
       setPhotos((prev) => {
-        const updated = [newPhoto, ...prev];
+        const updated = [...uploadedPhotos.reverse(), ...prev];
         const unique = ['All', ...Array.from(new Set(updated.map((ph) => ph.album ?? 'General')))];
         setAlbums(unique);
         return updated;
       });
       setShowUpload(false);
-      setUploadForm({ title: '', description: '', album: 'General', file: null });
+      setUploadForm({ title: '', description: '', album: 'General', files: [] });
     }
+
     setUploading(false);
+    setUploadProgress({ current: 0, total: 0 });
+  }
+
+  function removeFile(index: number) {
+    setUploadForm((f) => ({ ...f, files: f.files.filter((_, i) => i !== index) }));
   }
 
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section className="bg-navy-950 py-10 md:py-14">
+      <section className="bg-navy-950 py-8 md:py-14">
         <div className="page-container flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-center sm:text-left">
-            <Image className="w-9 h-9 text-gold-400 mx-auto sm:mx-0 mb-3" />
-            <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-1">Photo Gallery</h1>
-            <p className="text-slate-400 text-sm">Memories and moments from campus life.</p>
+            <Image className="w-8 h-8 md:w-9 md:h-9 text-gold-400 mx-auto sm:mx-0 mb-2 md:mb-3" />
+            <h1 className="text-xl md:text-3xl font-serif font-bold text-white mb-1">Photo Gallery</h1>
+            <p className="text-slate-400 text-xs md:text-sm">Memories and moments from campus life.</p>
           </div>
           {canUpload && (
-            <button onClick={() => setShowUpload(true)} className="btn-gold flex-shrink-0 text-sm">
-              <Upload className="w-4 h-4" /> Upload Photo
+            <button onClick={() => setShowUpload(true)} className="btn-gold flex-shrink-0 text-xs md:text-sm">
+              <Upload className="w-3.5 h-3.5 md:w-4 md:h-4" /> Upload Photos
             </button>
           )}
         </div>
@@ -134,7 +147,7 @@ export default function PhotoGallery() {
       )}
 
       {/* Grid */}
-      <section className="py-12 bg-slate-50">
+      <section className="py-8 md:py-12 bg-slate-50">
         <div className="page-container">
           {loading ? (
             <div className="flex justify-center py-20">
@@ -146,17 +159,17 @@ export default function PhotoGallery() {
               <p className="text-slate-500">No photos in this album yet.</p>
             </div>
           ) : (
-            <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-3">
               {filtered.map((photo, idx) => (
                 <button
                   key={photo.id}
                   onClick={() => setLightbox(idx)}
-                  className="break-inside-avoid w-full overflow-hidden rounded-xl shadow-sm hover:shadow-lg transition-all hover:scale-[1.02] group"
+                  className="aspect-square overflow-hidden rounded-lg md:rounded-xl shadow-sm hover:shadow-lg transition-all hover:scale-[1.02] group"
                 >
                   <img
                     src={photo.image_url}
                     alt={photo.title ?? ''}
-                    className="w-full h-auto object-cover group-hover:brightness-90 transition-all"
+                    className="w-full h-full object-cover group-hover:brightness-90 transition-all"
                     loading="lazy"
                   />
                 </button>
@@ -209,9 +222,9 @@ export default function PhotoGallery() {
       {/* Upload modal */}
       {showUpload && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowUpload(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-serif font-bold text-navy-900">Upload Photo</h2>
+              <h2 className="text-lg font-serif font-bold text-navy-900">Upload Photos</h2>
               <button onClick={() => setShowUpload(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
             </div>
             {uploadError && (
@@ -221,25 +234,55 @@ export default function PhotoGallery() {
             )}
             <form onSubmit={handleUpload} className="space-y-4">
               <div>
-                <label className="label">Photo File *</label>
+                <label className="label">Select Photos *</label>
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   required
-                  onChange={(e) => setUploadForm((f) => ({ ...f, file: e.target.files?.[0] ?? null }))}
+                  onChange={(e) => setUploadForm((f) => ({ ...f, files: Array.from(e.target.files ?? []) }))}
                   className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-navy-800 file:text-white hover:file:bg-navy-700 cursor-pointer"
                 />
+                {uploadForm.files.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-slate-500">{uploadForm.files.length} file(s) selected:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {uploadForm.files.map((file, idx) => (
+                        <div key={idx} className="relative group">
+                          <div className="w-16 h-16 rounded-lg overflow-hidden bg-slate-100 border border-slate-200">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={file.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeFile(idx)}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
-                <label className="label">Title</label>
-                <input value={uploadForm.title} onChange={(e) => setUploadForm((f) => ({ ...f, title: e.target.value }))} className="input-field" placeholder="Optional photo title" />
+                <label className="label">Title (applies to all)</label>
+                <input value={uploadForm.title} onChange={(e) => setUploadForm((f) => ({ ...f, title: e.target.value }))} className="input-field" placeholder="Optional title for all photos" />
               </div>
               <div>
                 <label className="label">Album</label>
                 <input value={uploadForm.album} onChange={(e) => setUploadForm((f) => ({ ...f, album: e.target.value }))} className="input-field" placeholder="e.g., Graduation 2024" />
               </div>
-              <button type="submit" disabled={uploading} className="btn-primary w-full justify-center">
-                {uploading ? <><Loader className="w-4 h-4 animate-spin" /> Uploading...</> : 'Upload Photo'}
+              <button type="submit" disabled={uploading || uploadForm.files.length === 0} className="btn-primary w-full justify-center">
+                {uploading ? (
+                  <><Loader className="w-4 h-4 animate-spin" /> Uploading {uploadProgress.current}/{uploadProgress.total}...</>
+                ) : (
+                  `Upload ${uploadForm.files.length || ''} Photo${uploadForm.files.length !== 1 ? 's' : ''}`
+                )}
               </button>
             </form>
           </div>

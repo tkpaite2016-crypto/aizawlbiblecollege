@@ -30,7 +30,7 @@ export default function Transaction() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addForm, setAddForm] = useState({
     season: '', amount: '', payment_date: new Date().toISOString().split('T')[0],
-    payment_method: 'cash', reference_no: '', notes: '',
+    payment_method: 'cash', payment_type: 'fee', reference_no: '', notes: '',
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -101,19 +101,27 @@ export default function Transaction() {
     if (!selectedUser) return;
     setSaveError('');
     setSaving(true);
+
+    // Generate receipt number
+    const timestamp = Date.now();
+    const receiptNum = `RCP-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(timestamp).slice(-5)}`;
+
     const { error } = await supabase.from('transactions').insert({
       user_id: selectedUser.id,
       season: addForm.season,
       amount: parseFloat(addForm.amount),
       payment_date: addForm.payment_date,
       payment_method: addForm.payment_method,
+      payment_type: addForm.payment_type,
+      receipt_number: receiptNum,
+      status: 'completed',
       reference_no: addForm.reference_no || null,
       notes: addForm.notes || null,
       recorded_by: profile?.id,
     });
     if (error) { setSaveError(error.message); setSaving(false); return; }
     setShowAddForm(false);
-    setAddForm({ season: '', amount: '', payment_date: new Date().toISOString().split('T')[0], payment_method: 'cash', reference_no: '', notes: '' });
+    setAddForm({ season: '', amount: '', payment_date: new Date().toISOString().split('T')[0], payment_method: 'cash', payment_type: 'fee', reference_no: '', notes: '' });
     setSaving(false);
     await selectUser(selectedUser);
   }
@@ -177,16 +185,21 @@ export default function Transaction() {
                     <thead className="bg-slate-50 text-slate-600 uppercase text-xs tracking-wide">
                       <tr>
                         <th className="px-4 py-3 text-left">Season / Term</th>
+                        <th className="px-4 py-3 text-left">Type</th>
                         <th className="px-4 py-3 text-right">Amount</th>
                         <th className="px-4 py-3 text-left">Date</th>
-                        <th className="px-4 py-3 text-left">Method</th>
-                        <th className="px-4 py-3 text-left">Reference</th>
+                        <th className="px-4 py-3 text-left">Receipt</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {myTx.map((tx) => (
                         <tr key={tx.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 font-medium text-navy-900">{tx.season}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${(tx as any).payment_type === 'fee' ? 'bg-blue-100 text-blue-700' : (tx as any).payment_type === 'mess' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-700'}`}>
+                              {(tx as any).payment_type ?? 'fee'}
+                            </span>
+                          </td>
                           <td className="px-4 py-3 text-right font-semibold text-green-600">₹{Number(tx.amount).toLocaleString('en-IN')}</td>
                           <td className="px-4 py-3 text-slate-600">
                             <div className="flex items-center gap-1.5">
@@ -194,8 +207,7 @@ export default function Transaction() {
                               {new Date(tx.payment_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-600 capitalize">{tx.payment_method?.replace('_', ' ')}</td>
-                          <td className="px-4 py-3 text-slate-500 text-xs">{tx.reference_no ?? '—'}</td>
+                          <td className="px-4 py-3 text-slate-500 text-xs font-mono">{(tx as any).receipt_number ?? '—'}</td>
                         </tr>
                       ))}
                       <tr className="bg-green-50 font-semibold">
@@ -354,11 +366,16 @@ export default function Transaction() {
                         <input type="number" min="1" step="0.01" value={addForm.amount} onChange={(e) => setAddForm((f) => ({ ...f, amount: e.target.value }))} className="input-field pl-7" placeholder="Amount" required />
                       </div>
                       <input type="date" value={addForm.payment_date} onChange={(e) => setAddForm((f) => ({ ...f, payment_date: e.target.value }))} className="input-field" required />
+                      <select value={addForm.payment_type} onChange={(e) => setAddForm((f) => ({ ...f, payment_type: e.target.value }))} className="input-field">
+                        <option value="fee">Fee Payment</option>
+                        <option value="mess">Mess Payment</option>
+                        <option value="other">Other</option>
+                      </select>
                       <select value={addForm.payment_method} onChange={(e) => setAddForm((f) => ({ ...f, payment_method: e.target.value }))} className="input-field">
                         {['cash', 'bank_transfer', 'online', 'cheque'].map((m) => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
                       </select>
-                      <input value={addForm.reference_no} onChange={(e) => setAddForm((f) => ({ ...f, reference_no: e.target.value }))} className="input-field" placeholder="Reference / Receipt No." />
-                      <input value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} className="input-field" placeholder="Notes (optional)" />
+                      <input value={addForm.reference_no} onChange={(e) => setAddForm((f) => ({ ...f, reference_no: e.target.value }))} className="input-field" placeholder="Reference No. (optional)" />
+                      <input value={addForm.notes} onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))} className="input-field sm:col-span-2" placeholder="Notes (optional)" />
                       <div className="sm:col-span-2 flex gap-2">
                         <button type="submit" disabled={saving} className="btn-primary">{saving ? 'Saving...' : 'Record Payment'}</button>
                         <button type="button" onClick={() => setShowAddForm(false)} className="btn-secondary">Cancel</button>
@@ -383,10 +400,10 @@ export default function Transaction() {
                         <thead className="bg-slate-50 text-slate-600 uppercase text-xs tracking-wide">
                           <tr>
                             <th className="px-4 py-3 text-left">Season</th>
+                            <th className="px-4 py-3 text-left">Type</th>
                             <th className="px-4 py-3 text-right">Amount</th>
                             <th className="px-4 py-3 text-left">Date</th>
-                            <th className="px-4 py-3 text-left">Method</th>
-                            <th className="px-4 py-3 text-left">Reference</th>
+                            <th className="px-4 py-3 text-left">Receipt</th>
                             {canEdit && <th className="px-4 py-3" />}
                           </tr>
                         </thead>
@@ -394,6 +411,11 @@ export default function Transaction() {
                           {selectedUser.transactions.map((tx) => (
                             <tr key={tx.id} className="hover:bg-slate-50">
                               <td className="px-4 py-3 font-medium text-navy-900">{tx.season}</td>
+                              <td className="px-4 py-3">
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${(tx as any).payment_type === 'fee' ? 'bg-blue-100 text-blue-700' : (tx as any).payment_type === 'mess' ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-700'}`}>
+                                  {(tx as any).payment_type ?? 'fee'}
+                                </span>
+                              </td>
                               <td className="px-4 py-3 text-right font-semibold text-green-600">₹{Number(tx.amount).toLocaleString('en-IN')}</td>
                               <td className="px-4 py-3 text-slate-600">
                                 <div className="flex items-center gap-1.5">
@@ -401,8 +423,7 @@ export default function Transaction() {
                                   {new Date(tx.payment_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-slate-600 capitalize">{tx.payment_method?.replace('_', ' ')}</td>
-                              <td className="px-4 py-3 text-slate-500 text-xs">{tx.reference_no ?? '—'}</td>
+                              <td className="px-4 py-3 text-slate-500 text-xs font-mono">{(tx as any).receipt_number ?? '—'}</td>
                               {canEdit && (
                                 <td className="px-4 py-3">
                                   <button onClick={() => deleteTransaction(tx.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50">

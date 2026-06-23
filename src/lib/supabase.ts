@@ -21,6 +21,14 @@ export type Profile = {
   bio: string | null;
   created_at: string;
   updated_at: string;
+  course: string | null;
+  completion_date: string | null;
+  certificate_url: string | null;
+  graduated: boolean;
+  admission_date: string | null;
+  qualification: string | null;
+  subject_in_charge: string | null;
+  pata_reg_no: string | null;
 };
 
 export type Notice = {
@@ -157,6 +165,9 @@ export type Transaction = {
   amount: number;
   payment_date: string;
   payment_method: 'cash' | 'bank_transfer' | 'online' | 'cheque';
+  payment_type: 'fee' | 'mess' | 'other';
+  status: 'pending' | 'completed' | 'failed';
+  receipt_number: string | null;
   reference_no: string | null;
   notes: string | null;
   recorded_by: string | null;

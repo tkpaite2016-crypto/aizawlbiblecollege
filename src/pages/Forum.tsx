@@ -231,16 +231,16 @@ export default function Forum() {
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section className="bg-navy-950 py-10 md:py-14">
+      <section className="bg-navy-950 py-8 md:py-14">
         <div className="page-container flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-center sm:text-left">
-            <MessageSquare className="w-9 h-9 text-gold-400 mx-auto sm:mx-0 mb-3" />
-            <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-1">Discussion Forum</h1>
-            <p className="text-slate-400 text-sm">Connect, ask questions, and grow together.</p>
+            <MessageSquare className="w-8 h-8 md:w-9 md:h-9 text-gold-400 mx-auto sm:mx-0 mb-2 md:mb-3" />
+            <h1 className="text-xl md:text-3xl font-serif font-bold text-white mb-1">Discussion Forum</h1>
+            <p className="text-slate-400 text-xs md:text-sm">Connect, ask questions, and grow together.</p>
           </div>
           {profile && (
-            <button onClick={() => setShowNew(true)} className="btn-gold flex-shrink-0 text-sm">
-              <Plus className="w-4 h-4" /> New Post
+            <button onClick={() => setShowNew(true)} className="btn-gold flex-shrink-0 text-xs md:text-sm">
+              <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" /> New Post
             </button>
           )}
         </div>

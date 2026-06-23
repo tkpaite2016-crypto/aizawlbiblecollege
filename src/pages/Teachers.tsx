@@ -1,37 +1,81 @@
 import { useEffect, useState } from 'react';
-import { MapPin, Briefcase, Award, BookOpen, User } from 'lucide-react';
-import { supabase, Teacher } from '../lib/supabase';
+import { MapPin, Briefcase, Award, BookOpen, User, Mail, Phone } from 'lucide-react';
+import { supabase, Profile, Teacher } from '../lib/supabase';
 
 type FilterType = 'current' | 'former';
 
+type FacultyMember = {
+  id: string;
+  full_name: string;
+  qualification: string | null;
+  subject_in_charge: string | null;
+  address: string | null;
+  bio: string | null;
+  photo_url: string | null;
+  left_at?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  source: 'profile' | 'teacher';
+};
+
 export default function Teachers() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [faculty, setFaculty] = useState<FacultyMember[]>([]);
+  const [formerTeachers, setFormerTeachers] = useState<FacultyMember[]>([]);
   const [filter, setFilter] = useState<FilterType>('current');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    supabase
-      .from('teachers')
-      .select('*')
-      .eq('is_current', filter === 'current')
-      .order('display_order', { ascending: true })
-      .then(({ data }) => {
-        setTeachers(data ?? []);
-        setLoading(false);
-      });
-  }, [filter]);
+    loadData();
+  }, []);
 
-  const filtered = teachers;
+  async function loadData() {
+    setLoading(true);
+
+    const [profilesRes, teachersRes] = await Promise.all([
+      supabase.from('profiles').select('id, full_name, qualification, subject_in_charge, address, bio, avatar_url, email, phone').eq('role', 'faculty').order('full_name'),
+      supabase.from('teachers').select('*').eq('is_current', false).order('display_order'),
+    ]);
+
+    const currentFaculty: FacultyMember[] = (profilesRes.data ?? []).map((p) => ({
+      id: p.id,
+      full_name: p.full_name ?? 'Faculty Member',
+      qualification: p.qualification,
+      subject_in_charge: p.subject_in_charge,
+      address: p.address,
+      bio: p.bio,
+      photo_url: p.avatar_url,
+      email: p.email,
+      phone: p.phone,
+      source: 'profile' as const,
+    }));
+
+    const formerFaculty: FacultyMember[] = (teachersRes.data ?? []).map((t) => ({
+      id: t.id,
+      full_name: t.full_name,
+      qualification: t.qualification,
+      subject_in_charge: t.subject_in_charge,
+      address: t.address,
+      bio: t.bio,
+      photo_url: t.photo_url,
+      left_at: t.left_at,
+      source: 'teacher' as const,
+    }));
+
+    setFaculty(currentFaculty);
+    setFormerTeachers(formerFaculty);
+    setLoading(false);
+  }
+
+  const filtered = filter === 'current' ? faculty : formerTeachers;
 
   return (
     <div className="page-enter">
       {/* Hero */}
-      <section className="bg-navy-950 py-10 md:py-14">
+      <section className="bg-navy-950 py-8 md:py-14">
         <div className="page-container text-center">
-          <BookOpen className="w-9 h-9 text-gold-400 mx-auto mb-3" />
-          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Our Dedicated Faculty</h1>
-          <p className="text-slate-400 max-w-xl mx-auto text-sm">
+          <BookOpen className="w-8 h-8 md:w-9 md:h-9 text-gold-400 mx-auto mb-2 md:mb-3" />
+          <h1 className="text-xl md:text-3xl font-serif font-bold text-white mb-1 md:mb-2">Our Dedicated Faculty</h1>
+          <p className="text-slate-400 max-w-xl mx-auto text-xs md:text-sm">
             Meet the theologians and scholars shaping the next generation of ministry leaders.
           </p>
         </div>
@@ -50,6 +94,11 @@ export default function Teachers() {
               }`}
             >
               Current Faculty
+              {faculty.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${filter === 'current' ? 'bg-white/20' : 'bg-slate-200 text-slate-600'}`}>
+                  {faculty.length}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setFilter('former')}
@@ -60,12 +109,17 @@ export default function Teachers() {
               }`}
             >
               Former Teachers
+              {formerTeachers.length > 0 && (
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${filter === 'former' ? 'bg-white/20' : 'bg-slate-200 text-slate-600'}`}>
+                  {formerTeachers.length}
+                </span>
+              )}
             </button>
           </div>
         </div>
       </section>
 
-      {/* Teachers zigzag list */}
+      {/* Faculty zigzag list */}
       <section className="py-12 md:py-16 bg-slate-50">
         <div className="page-container">
           {loading ? (
@@ -75,16 +129,20 @@ export default function Teachers() {
           ) : filtered.length === 0 ? (
             <div className="text-center py-20">
               <User className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-slate-500">No {filter} faculty found</h3>
-              <p className="text-slate-400 text-sm mt-1">Check back later or switch the filter.</p>
+              <h3 className="text-lg font-semibold text-slate-500">No {filter === 'current' ? 'current faculty' : 'former teachers'} found</h3>
+              <p className="text-slate-400 text-sm mt-1">
+                {filter === 'current'
+                  ? 'Faculty members will appear here once they are assigned.'
+                  : 'Check back later or switch the filter.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-8">
-              {filtered.map((teacher, index) => {
+              {filtered.map((member, index) => {
                 const isEven = index % 2 === 0;
                 return (
                   <div
-                    key={teacher.id}
+                    key={member.id}
                     className="card hover:shadow-lg transition-all duration-300 overflow-visible"
                   >
                     <div className={`flex flex-col md:flex-row ${isEven ? 'md:flex-row' : 'md:flex-row-reverse'} items-stretch`}>
@@ -100,47 +158,62 @@ export default function Teachers() {
                           <p className="text-xs font-semibold text-gold-600 uppercase tracking-widest mb-1">
                             {filter === 'current' ? 'Current Faculty' : 'Former Faculty'}
                           </p>
-                          <h2 className="text-2xl md:text-3xl font-serif font-bold text-navy-900">{teacher.full_name}</h2>
+                          <h2 className="text-2xl md:text-3xl font-serif font-bold text-navy-900">{member.full_name}</h2>
                         </div>
 
-                        {teacher.qualification && (
+                        {member.qualification && (
                           <div className="flex items-start gap-2 mt-3 text-slate-600 text-sm">
                             <Award className="w-4 h-4 text-gold-500 flex-shrink-0 mt-0.5" />
-                            <span>{teacher.qualification}</span>
+                            <span>{member.qualification}</span>
                           </div>
                         )}
 
-                        {teacher.address && (
-                          <div className="flex items-start gap-2 mt-2 text-slate-600 text-sm">
-                            <MapPin className="w-4 h-4 text-gold-500 flex-shrink-0 mt-0.5" />
-                            <span>{teacher.address}</span>
-                          </div>
-                        )}
-
-                        {teacher.subject_in_charge && (
+                        {member.subject_in_charge && (
                           <div className="flex items-start gap-2 mt-2 text-slate-600 text-sm">
                             <Briefcase className="w-4 h-4 text-gold-500 flex-shrink-0 mt-0.5" />
-                            <span>{teacher.subject_in_charge}</span>
+                            <span>{member.subject_in_charge}</span>
                           </div>
                         )}
 
-                        {teacher.bio && (
-                          <p className="text-slate-500 text-sm mt-4 leading-relaxed line-clamp-3">{teacher.bio}</p>
+                        {member.address && (
+                          <div className="flex items-start gap-2 mt-2 text-slate-600 text-sm">
+                            <MapPin className="w-4 h-4 text-gold-500 flex-shrink-0 mt-0.5" />
+                            <span>{member.address}</span>
+                          </div>
                         )}
 
-                        {teacher.left_at && filter === 'former' && (
+                        {member.source === 'profile' && (member.email || member.phone) && (
+                          <div className="flex flex-wrap gap-4 mt-3">
+                            {member.email && (
+                              <a href={`mailto:${member.email}`} className="flex items-center gap-1.5 text-sm text-navy-600 hover:text-gold-600 transition-colors">
+                                <Mail className="w-3.5 h-3.5" /> {member.email}
+                              </a>
+                            )}
+                            {member.phone && (
+                              <span className="flex items-center gap-1.5 text-sm text-slate-500">
+                                <Phone className="w-3.5 h-3.5" /> {member.phone}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {member.bio && (
+                          <p className="text-slate-500 text-sm mt-4 leading-relaxed line-clamp-3">{member.bio}</p>
+                        )}
+
+                        {member.left_at && filter === 'former' && (
                           <p className="text-xs text-slate-400 mt-3">
-                            Served until {new Date(teacher.left_at).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                            Served until {new Date(member.left_at).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
                           </p>
                         )}
                       </div>
 
                       {/* Photo side */}
                       <div className="w-full md:w-56 lg:w-72 flex-shrink-0 bg-slate-100 relative overflow-hidden min-h-[200px] md:min-h-0 rounded-t-xl md:rounded-none">
-                        {teacher.photo_url ? (
+                        {member.photo_url ? (
                           <img
-                            src={teacher.photo_url}
-                            alt={teacher.full_name}
+                            src={member.photo_url}
+                            alt={member.full_name}
                             className="w-full h-full object-cover"
                             style={{ minHeight: '220px' }}
                           />

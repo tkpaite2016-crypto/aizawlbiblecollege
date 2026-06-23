@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { CheckCircle, AlertCircle, Camera, RotateCcw, Upload, FileText, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -87,6 +87,21 @@ export default function ApplicationForm() {
   const [success, setSuccess] = useState(false);
   const sigRef = useRef<SignatureCanvas>(null);
   const photoRef = useRef<HTMLInputElement>(null);
+  const [formDownloadUrl, setFormDownloadUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from('downloads')
+      .select('file_url, title')
+      .eq('category', 'application_form')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.file_url) setFormDownloadUrl(data.file_url);
+      });
+  }, []);
 
   const set = useCallback((key: keyof FormState, val: string) => {
     setForm(f => ({ ...f, [key]: val }));
@@ -184,23 +199,29 @@ export default function ApplicationForm() {
     <div className="page-enter">
 
       {/* Hero */}
-      <section className="bg-navy-950 py-10 md:py-14">
+      <section className="bg-navy-950 py-8 md:py-12 lg:py-14">
         <div className="page-container text-center">
-          <FileText className="w-9 h-9 text-gold-400 mx-auto mb-3" />
-          <h1 className="text-2xl md:text-3xl font-serif font-bold text-white mb-2">Application Form</h1>
-          <p className="text-slate-400 max-w-lg mx-auto text-sm mb-5">
+          <FileText className="w-8 h-8 md:w-9 md:h-9 text-gold-400 mx-auto mb-2 md:mb-3" />
+          <h1 className="text-xl md:text-2xl lg:text-3xl font-serif font-bold text-white mb-1 md:mb-2">Application Form</h1>
+          <p className="text-slate-400 max-w-lg mx-auto text-xs md:text-sm">
             Apply for admission to Aizawl Bible College. Fill in the form below and submit — it takes just a few minutes.
           </p>
-          <a
-            href="public/ApplicationForm.pdf"
-            download="ApplicationForm.pdf"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Download PDF Form
-          </a>
+          {formDownloadUrl ? (
+            <a
+              href={formDownloadUrl}
+              download
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors mt-3"
+            >
+              <Download className="w-4 h-4" />
+              Download Application Form
+            </a>
+          ) : (
+            <p className="text-slate-300 text-xs mt-3">
+              No application form file available — fill in the form below.
+            </p>
+          )}
         </div>
       </section>
 

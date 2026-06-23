@@ -3,6 +3,8 @@ import { useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import LoadingSpinner from './components/LoadingSpinner';
+import WhatsAppButton from './components/WhatsAppButton';
+import PrincipalGreetingModal from './components/PrincipalGreetingModal';
 
 import Home from './pages/Home';
 import UserLogin from './pages/UserLogin';
@@ -15,12 +17,14 @@ import ApplicationForm from './pages/ApplicationForm';
 import PhotoGallery from './pages/PhotoGallery';
 import Forum from './pages/Forum';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminUserProfile from './pages/AdminUserProfile';
 import Transaction from './pages/Transaction';
 import Profile from './pages/Profile';
 import Prologue from './pages/Prologue';
 import Doctrine from './pages/Doctrine';
 import AcademicInfo from './pages/AcademicInfo';
 import ContactUs from './pages/ContactUs';
+import BoardOfManagement from './pages/BoardOfManagement';
 
 function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string[] }) {
   const { user, profile, loading } = useAuth();
@@ -62,6 +66,7 @@ export default function App() {
           <Route path="/doctrine" element={<Doctrine />} />
           <Route path="/academics" element={<AcademicInfo />} />
           <Route path="/contact" element={<ContactUs />} />
+          <Route path="/board" element={<BoardOfManagement />} />
           <Route
             path="/forum"
             element={<ProtectedRoute><Forum /></ProtectedRoute>}
@@ -75,6 +80,10 @@ export default function App() {
             element={<ProtectedRoute requiredRole={['admin']}><AdminDashboard /></ProtectedRoute>}
           />
           <Route
+            path="/admin/users/:id"
+            element={<ProtectedRoute requiredRole={['admin']}><AdminUserProfile /></ProtectedRoute>}
+          />
+          <Route
             path="/transactions"
             element={<ProtectedRoute requiredRole={['admin', 'faculty', 'student']}><Transaction /></ProtectedRoute>}
           />
@@ -82,6 +91,8 @@ export default function App() {
         </Routes>
       </main>
       <Footer />
+      <WhatsAppButton />
+      <PrincipalGreetingModal />
     </div>
   );
 }

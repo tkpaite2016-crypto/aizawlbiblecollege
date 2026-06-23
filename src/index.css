@@ -78,6 +78,14 @@
   .bg-hero-gradient {
     background: linear-gradient(135deg, #111640 0%, #1e2a8a 40%, #2236d8 100%);
   }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Scrollbar styling */
