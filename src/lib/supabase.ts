@@ -13,7 +13,7 @@ export type Profile = {
   id: string;
   email: string | null;
   full_name: string | null;
-  role: 'admin' | 'faculty' | 'student' | 'standard';
+  role: 'admin' | 'faculty' | 'student' | 'standard' | 'finance';
   student_year: '1st_year' | '2nd_year' | 'final_year' | null;
   avatar_url: string | null;
   phone: string | null;
@@ -29,6 +29,21 @@ export type Profile = {
   qualification: string | null;
   subject_in_charge: string | null;
   pata_reg_no: string | null;
+  position: string | null;
+  is_banned: boolean;
+  profile_theme: string | null;
+};
+
+export type Notification = {
+  id: string;
+  user_id: string;
+  sent_by: string | null;
+  title: string;
+  message: string;
+  type: string;
+  is_read: boolean;
+  created_at: string;
+  sender?: Profile;
 };
 
 export type Notice = {
@@ -40,6 +55,7 @@ export type Notice = {
   author_id: string | null;
   is_published: boolean;
   expires_at: string | null;
+  image_url: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -173,6 +189,10 @@ export type Transaction = {
   recorded_by: string | null;
   created_at: string;
   user?: Profile;
+  gateway?: string | null;
+  gateway_order_id?: string | null;
+  gateway_payment_id?: string | null;
+  gateway_signature?: string | null;
 };
 
 export type SiteSetting = {

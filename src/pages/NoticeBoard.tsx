@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Bell, Filter, Calendar, AlertTriangle, BookOpen, DollarSign, Star, Info } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Bell, Filter, Calendar, AlertTriangle, BookOpen, DollarSign, Star, Info, Share2, Check, X } from 'lucide-react';
 import { supabase, Notice } from '../lib/supabase';
 
 const categories = ['all', 'academic', 'event', 'general', 'urgent', 'financial'] as const;
@@ -32,8 +33,12 @@ export default function NoticeBoard() {
   const [category, setCategory] = useState<Category>('all');
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Notice | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
+    const noticeId = searchParams.get('id');
+
     setLoading(true);
     let query = supabase
       .from('notices')
@@ -41,11 +46,41 @@ export default function NoticeBoard() {
       .eq('is_published', true)
       .order('created_at', { ascending: false });
     if (category !== 'all') query = query.eq('category', category);
+
     query.then(({ data }) => {
-      setNotices(data ?? []);
+      const list = data ?? [];
+      setNotices(list);
       setLoading(false);
+
+      // Open notice from URL id param
+      if (noticeId) {
+        const target = list.find((n) => n.id === noticeId);
+        if (target) {
+          setSelected(target);
+        } else {
+          // Try direct fetch if not in filtered list
+          supabase.from('notices').select('*').eq('id', noticeId).eq('is_published', true).maybeSingle().then(({ data: n }) => {
+            if (n) setSelected(n);
+          });
+        }
+      }
     });
   }, [category]);
+
+  function shareNotice(notice: Notice, e: React.MouseEvent) {
+    e.stopPropagation();
+    const url = `${window.location.origin}/notices?id=${notice.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(notice.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  }
+
+  function closeModal() {
+    setSelected(null);
+    searchParams.delete('id');
+    setSearchParams(searchParams);
+  }
 
   return (
     <div className="page-enter">
@@ -99,27 +134,49 @@ export default function NoticeBoard() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               {notices.map((notice) => {
                 const CatIcon = categoryIcon[notice.category] ?? Info;
+                const copied = copiedId === notice.id;
                 return (
                   <button
                     key={notice.id}
                     onClick={() => setSelected(notice)}
-                    className="card text-left hover:shadow-lg transition-all hover:-translate-y-0.5 p-5 flex flex-col"
+                    className="card text-left hover:shadow-lg transition-all hover:-translate-y-0.5 flex flex-col overflow-hidden group"
                   >
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${categoryColor[notice.category]}`}>
-                        <CatIcon className="w-3 h-3" />
-                        {notice.category.charAt(0).toUpperCase() + notice.category.slice(1)}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${priorityBadge[notice.priority]}`}>
-                        <Star className="w-2.5 h-2.5" />
-                        {notice.priority}
-                      </span>
+                    {/* Notice image (thumbnail/banner) */}
+                    {notice.image_url && (
+                      <div className="w-full h-44 overflow-hidden flex-shrink-0 bg-slate-100">
+                        <img
+                          src={notice.image_url}
+                          alt={notice.title}
+                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                        />
+                      </div>
+                    )}
+                    <div className="p-5 flex flex-col flex-1">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${categoryColor[notice.category]}`}>
+                          <CatIcon className="w-3 h-3" />
+                          {notice.category.charAt(0).toUpperCase() + notice.category.slice(1)}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${priorityBadge[notice.priority]}`}>
+                            <Star className="w-2.5 h-2.5" />
+                            {notice.priority}
+                          </span>
+                          <button
+                            onClick={(e) => shareNotice(notice, e)}
+                            title="Copy share link"
+                            className={`p-1 rounded-full transition-all ${copied ? 'bg-green-100 text-green-600' : 'text-slate-400 hover:text-navy-600 hover:bg-slate-100'}`}
+                          >
+                            {copied ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                      <h3 className="font-semibold text-navy-900 text-base leading-snug mb-2">{notice.title}</h3>
+                      <p className="text-slate-600 text-sm leading-relaxed flex-1 line-clamp-3">{notice.content}</p>
+                      <p className="text-slate-400 text-xs mt-3 pt-3 border-t border-slate-100">
+                        {new Date(notice.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </p>
                     </div>
-                    <h3 className="font-semibold text-navy-900 text-base leading-snug mb-2">{notice.title}</h3>
-                    <p className="text-slate-600 text-sm leading-relaxed flex-1 line-clamp-3">{notice.content}</p>
-                    <p className="text-slate-400 text-xs mt-3 pt-3 border-t border-slate-100">
-                      {new Date(notice.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}
-                    </p>
                   </button>
                 );
               })}
@@ -130,24 +187,40 @@ export default function NoticeBoard() {
 
       {/* Modal */}
       {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setSelected(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 md:p-8" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2 mb-4">
-              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${categoryColor[selected.category]}`}>
-                {selected.category.charAt(0).toUpperCase() + selected.category.slice(1)}
-              </span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${priorityBadge[selected.priority]}`}>
-                {selected.priority} priority
-              </span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={closeModal}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Banner image in modal */}
+            {selected.image_url && (
+              <div className="w-full h-52 flex-shrink-0 overflow-hidden bg-slate-100">
+                <img src={selected.image_url} alt={selected.title} className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div className="p-6 md:p-8 overflow-y-auto">
+              <div className="flex items-center gap-2 mb-4">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${categoryColor[selected.category]}`}>
+                  {selected.category.charAt(0).toUpperCase() + selected.category.slice(1)}
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${priorityBadge[selected.priority]}`}>
+                  {selected.priority} priority
+                </span>
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={(e) => shareNotice(selected, e)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${copiedId === selected.id ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  >
+                    {copiedId === selected.id ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Share2 className="w-3.5 h-3.5" /> Share</>}
+                  </button>
+                </div>
+              </div>
+              <h2 className="text-xl font-serif font-bold text-navy-900 mb-3">{selected.title}</h2>
+              <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{selected.content}</p>
+              <p className="text-slate-400 text-xs mt-4 pt-4 border-t border-slate-100">
+                Posted: {new Date(selected.created_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              </p>
+              <button onClick={closeModal} className="btn-primary mt-4 w-full justify-center">
+                <X className="w-4 h-4" /> Close
+              </button>
             </div>
-            <h2 className="text-xl font-serif font-bold text-navy-900 mb-3">{selected.title}</h2>
-            <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{selected.content}</p>
-            <p className="text-slate-400 text-xs mt-4 pt-4 border-t border-slate-100">
-              Posted: {new Date(selected.created_at).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-            <button onClick={() => setSelected(null)} className="btn-primary mt-4 w-full justify-center">
-              Close
-            </button>
           </div>
         </div>
       )}

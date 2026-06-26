@@ -1,11 +1,96 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   BookOpen, Bell, Users, Download, Image, ChevronRight,
-  Award, MapPin, Calendar, Star, ArrowRight, Megaphone
+  Award, MapPin, Calendar, Star, ArrowRight, Megaphone, ChevronLeft
 } from 'lucide-react';
-import { supabase, Notice } from '../lib/supabase';
+import { supabase, Notice, Photo } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import DailyVerse from '../components/DailyVerse';
+
+function GallerySlider({ photos, rounded = true }: { photos: Photo[]; rounded?: boolean }) {
+  const [current, setCurrent] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const advance = useCallback(() => {
+    setCurrent((c) => (c + 1) % photos.length);
+  }, [photos.length]);
+
+  useEffect(() => {
+    if (photos.length < 2) return;
+    timerRef.current = setInterval(advance, 5000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [advance, photos.length]);
+
+  function goTo(idx: number) {
+    setCurrent(idx);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(advance, 5000);
+  }
+
+  function prev() { goTo((current - 1 + photos.length) % photos.length); }
+  function next() { goTo((current + 1) % photos.length); }
+
+  if (!photos.length) return null;
+
+  return (
+    <div className={`relative w-full h-full overflow-hidden bg-slate-900 select-none ${rounded ? 'rounded-2xl' : ''}`}>
+      {photos.map((photo, i) => (
+        <div
+          key={photo.id}
+          className={`absolute inset-0 transition-opacity duration-700 ${i === current ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+        >
+          <img
+            src={photo.image_url}
+            alt={photo.title ?? ''}
+            className="w-full h-full object-cover"
+          />
+          {photo.title && (
+            <div className="absolute bottom-0 left-0 right-0 px-6 py-4 bg-gradient-to-t from-black/70 to-transparent">
+              <p className="text-white text-sm font-medium truncate">{photo.title}</p>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Arrows */}
+      {photos.length > 1 && (
+        <>
+          <button
+            onClick={prev}
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            onClick={next}
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </>
+      )}
+
+      {/* Dots */}
+      {photos.length > 1 && (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
+          {photos.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              className={`rounded-full transition-all ${i === current ? 'w-5 h-2 bg-white' : 'w-2 h-2 bg-white/50 hover:bg-white/80'}`}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Counter */}
+      <div className="absolute top-3 right-3 z-20 bg-black/40 text-white text-xs px-2 py-0.5 rounded-full">
+        {current + 1} / {photos.length}
+      </div>
+    </div>
+  );
+}
 
 function useCountUp(target: number, duration = 2000) {
   const [count, setCount] = useState(0);
@@ -69,6 +154,7 @@ export default function Home() {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [stats, setStats] = useState({ first: 0, second: 0, final: 0 });
   const [siteImages, setSiteImages] = useState<Record<string, string>>({});
+  const [galleryPhotos, setGalleryPhotos] = useState<Photo[]>([]);
 
   // Default fallback images
   const defaultImages = {
@@ -99,9 +185,17 @@ export default function Home() {
       });
 
     supabase
+      .from('photos')
+      .select('*')
+      .eq('is_published', true)
+      .order('created_at', { ascending: false })
+      .limit(12)
+      .then(({ data }) => setGalleryPhotos(data ?? []));
+
+    supabase
       .from('site_settings')
       .select('*')
-      .in('setting_key', ['home_hero_image', 'home_about_image'])
+      .in('setting_key', ['home_hero_image', 'home_about_image', 'home_hero_opacity'])
       .then(({ data }) => {
         if (data) {
           const imgMap: Record<string, string> = {};
@@ -119,7 +213,7 @@ export default function Home() {
       <section
         className="relative min-h-[85vh] flex items-center bg-hero-gradient overflow-hidden"
         style={{
-          backgroundImage: `linear-gradient(135deg, rgba(17,22,64,0.95) 0%, rgba(30,42,138,0.88) 60%, rgba(34,54,216,0.85) 100%), url('${siteImages.home_hero_image || defaultImages.home_hero_image}')`,
+          backgroundImage: `linear-gradient(135deg, rgba(17,22,64,${siteImages.home_hero_opacity || '0.95'}) 0%, rgba(30,42,138,${siteImages.home_hero_opacity || '0.88'}) 60%, rgba(34,54,216,${parseFloat(siteImages.home_hero_opacity || '0.88') * 0.97}) 100%), url('${siteImages.home_hero_image || defaultImages.home_hero_image}')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
@@ -183,6 +277,9 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Daily Bible Verse */}
+      <DailyVerse />
+
       {/* Latest notices widget */}
       <section className="py-16 md:py-20 bg-white">
         <div className="page-container">
@@ -233,6 +330,13 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Gallery Slider — full bleed, no heading */}
+      {galleryPhotos.length > 0 && (
+        <section className="h-72 md:h-[480px] overflow-hidden">
+          <GallerySlider photos={galleryPhotos} rounded={false} />
+        </section>
+      )}
 
       {/* About snippet */}
       <section className="py-16 md:py-20 bg-slate-50">

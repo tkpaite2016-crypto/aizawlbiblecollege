@@ -2,10 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import {
   User, Mail, Phone, MapPin, CreditCard as Edit2, Save, X, BookOpen,
   Calendar, Loader, RefreshCw, Upload, Award, FileCheck, GraduationCap,
-  CreditCard, IndianRupee, Plus, CheckCircle, AlertCircle
+  CreditCard, IndianRupee, Plus, CheckCircle, AlertCircle, Sparkles, Palette,
+  Ban, Bell, CheckCheck, Clock,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import type { Notification } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { getTheme } from '../lib/themes';
 
 type Transaction = {
   id: string;
@@ -52,6 +55,15 @@ export default function Profile() {
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+
+  // Razorpay state
+  const [razorpayEnabled, setRazorpayEnabled] = useState(false);
+  const [razorpayKeyId, setRazorpayKeyId] = useState('');
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   function openEdit() {
     setForm({
@@ -136,10 +148,13 @@ export default function Profile() {
     setRetrying(false);
   }
 
-  // Load transactions
+  // Load transactions and notifications
   useEffect(() => {
-    if (profile?.id && profile.role === 'student') {
+    if (!profile?.id) return;
+    loadNotifications();
+    if (profile.role === 'student') {
       loadTransactions();
+      loadRazorpaySettings();
     }
   }, [profile?.id, profile?.role]);
 
@@ -154,20 +169,67 @@ export default function Profile() {
     setTransactionsLoading(false);
   }
 
+  async function loadRazorpaySettings() {
+    const { data } = await supabase
+      .from('site_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', ['razorpay_enabled', 'razorpay_key_id']);
+    if (data) {
+      const enabledSetting = data.find((s) => s.setting_key === 'razorpay_enabled');
+      if (enabledSetting) setRazorpayEnabled(enabledSetting.setting_value === 'true');
+      const keyIdSetting = data.find((s) => s.setting_key === 'razorpay_key_id');
+      if (keyIdSetting) setRazorpayKeyId(keyIdSetting.setting_value || '');
+    }
+  }
+
+  async function loadNotifications() {
+    setNotifLoading(true);
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', profile!.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    const notifs = data ?? [];
+    setNotifications(notifs);
+    setUnreadCount(notifs.filter((n) => !n.is_read).length);
+    setNotifLoading(false);
+  }
+
+  async function markNotifRead(id: string) {
+    await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    setUnreadCount((c) => Math.max(0, c - 1));
+  }
+
+  async function markAllRead() {
+    await supabase.from('notifications').update({ is_read: true }).eq('user_id', profile!.id).eq('is_read', false);
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnreadCount(0);
+  }
+
   async function submitPayment(e: React.FormEvent) {
     e.preventDefault();
     setPaymentError('');
     setPaymentSubmitting(true);
 
     try {
-      // Generate receipt number
+      const amount = parseFloat(paymentForm.amount);
+
+      // If Razorpay is enabled and payment method is online, use Razorpay
+      if (razorpayEnabled && razorpayKeyId && paymentForm.payment_method === 'online') {
+        await initiateRazorpayPayment(amount);
+        return;
+      }
+
+      // Manual payment recording
       const timestamp = Date.now();
       const receiptNum = `RCP-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(timestamp).slice(-5)}`;
 
       const { error: txError } = await supabase.from('transactions').insert({
         user_id: profile!.id,
         season: `Payment - ${new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`,
-        amount: parseFloat(paymentForm.amount),
+        amount: amount,
         payment_type: paymentForm.payment_type,
         payment_method: paymentForm.payment_method,
         status: 'completed',
@@ -190,6 +252,77 @@ export default function Profile() {
     } finally {
       setPaymentSubmitting(false);
     }
+  }
+
+  async function initiateRazorpayPayment(amount: number) {
+    if (!(window as any).Razorpay) {
+      setPaymentError('Razorpay SDK not loaded. Please refresh the page and try again.');
+      setPaymentSubmitting(false);
+      return;
+    }
+
+    const timestamp = Date.now();
+    const receiptNum = `RCP-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(timestamp).slice(-5)}`;
+
+    const options = {
+      key: razorpayKeyId,
+      amount: amount * 100,
+      currency: 'INR',
+      name: 'Aizawl Bible College',
+      description: `${paymentForm.payment_type === 'fee' ? 'Fee' : 'Mess'} Payment`,
+      order_id: undefined as string | undefined,
+      handler: async (response: any) => {
+        try {
+          const { error: txError } = await supabase.from('transactions').insert({
+            user_id: profile!.id,
+            season: `Payment - ${new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`,
+            amount: amount,
+            payment_type: paymentForm.payment_type,
+            payment_method: 'online',
+            status: 'completed',
+            receipt_number: receiptNum,
+            notes: paymentForm.notes || null,
+            recorded_by: profile!.id,
+            gateway: 'razorpay',
+            gateway_order_id: response.razorpay_order_id,
+            gateway_payment_id: response.razorpay_payment_id,
+            gateway_signature: response.razorpay_signature,
+          });
+
+          if (txError) throw txError;
+
+          setPaymentSuccess(true);
+          setTimeout(() => {
+            setPaymentSuccess(false);
+            setShowPaymentForm(false);
+            setPaymentForm({ amount: '', payment_type: 'fee', payment_method: 'online', notes: '' });
+            loadTransactions();
+          }, 2000);
+        } catch (err) {
+          setPaymentError('Payment recorded but failed to save. Please contact admin.');
+        } finally {
+          setPaymentSubmitting(false);
+        }
+      },
+      prefill: {
+        name: profile?.full_name || '',
+        email: profile?.email || '',
+        contact: profile?.phone || '',
+      },
+      theme: {
+        color: '#0F1B3D',
+      },
+      modal: {
+        ondismiss: () => {
+          setPaymentSubmitting(false);
+          setPaymentError('Payment cancelled.');
+        },
+      },
+    };
+
+    const rzp = new (window as any).Razorpay(options);
+    rzp.open();
+    setPaymentSubmitting(false);
   }
 
   if (profileLoading) {
@@ -234,6 +367,7 @@ export default function Profile() {
     faculty: 'bg-navy-100 text-navy-700',
     student: 'bg-gold-100 text-gold-700',
     standard: 'bg-slate-100 text-slate-700',
+    finance: 'bg-green-100 text-green-700',
   };
 
   const yearLabel: Record<string, string> = {
@@ -241,6 +375,11 @@ export default function Profile() {
     '2nd_year': '2nd Year',
     'final_year': 'Final Year',
   };
+
+  const isPrincipal = profile?.role === 'faculty' && profile?.position === 'Principal';
+  const isDesigner = profile?.email === 'tkpaite2016@gmail.com';
+  const isBanned = profile?.is_banned ?? false;
+  const theme = getTheme(profile?.profile_theme);
 
   return (
     <div className="page-enter min-h-screen bg-slate-50 py-10 px-4">
@@ -251,60 +390,121 @@ export default function Profile() {
           </div>
         )}
 
-        {/* Profile card */}
-        <div className="card overflow-hidden">
-          {/* Cover with graduated badge */}
-          <div className="relative">
-            <div className={`h-28 ${profile.graduated ? 'bg-gradient-to-r from-gold-600 via-gold-500 to-gold-400' : 'bg-hero-gradient'}`} />
-            {profile.graduated && (
-              <div className="absolute top-4 right-4 flex items-center gap-2 bg-white/95 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
-                <GraduationCap className="w-5 h-5 text-gold-600" />
-                <span className="font-bold text-navy-900 tracking-wide">GRADUATED</span>
+        {/* Banned User Notice */}
+        {isBanned && (
+          <div className="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                <Ban className="w-5 h-5 text-red-600" />
               </div>
-            )}
-          </div>
-
-          {/* Avatar with graduated overlay */}
-          <div className="px-6 pb-6">
-            <div className="flex items-end justify-between -mt-12 mb-4">
-              <div className="relative">
-                <div className="w-24 h-24 rounded-2xl border-4 border-white shadow-lg overflow-hidden bg-navy-200 relative">
-                  {profile.avatar_url ? (
-                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-4xl font-bold text-navy-700">
-                        {(profile.full_name ?? profile.email ?? 'U')[0].toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-                  {profile.graduated && (
-                    <div className="absolute inset-0 bg-gold-400/20 flex items-center justify-center">
-                      <Award className="w-10 h-10 text-white drop-shadow-lg" />
-                    </div>
-                  )}
-                </div>
+              <div>
+                <h3 className="font-bold text-red-700">Account Banned</h3>
+                <p className="text-sm text-red-600">Your account has been restricted. You cannot edit your profile or participate in forums.</p>
               </div>
-              <button onClick={openEdit} className="btn-secondary mt-14 flex items-center gap-2">
-                <Edit2 className="w-4 h-4" /> Edit Profile
-              </button>
             </div>
+          </div>
+        )}
 
-            <h1 className="text-2xl font-serif font-bold text-navy-900">
-              {profile.full_name ?? 'No name set'}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2 mt-2">
-              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold capitalize ${roleBadge[profile.role]}`}>
-                {profile.role}
-              </span>
-              {profile.role === 'student' && profile.student_year && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-gold-100 text-gold-700">
-                  <Calendar className="w-3 h-3" /> {yearLabel[profile.student_year]}
+        {/* Profile card */}
+        <div className={`card overflow-hidden relative ${theme.ringClass} ${isPrincipal ? 'ring-2 ring-gold-400' : ''} ${isDesigner ? '!ring-2 !ring-purple-400' : ''}`}>
+          {/* Cover with theme */}
+          <div className="relative h-36 overflow-hidden">
+            <div
+              className={`absolute inset-0 ${
+                isDesigner
+                  ? 'bg-gradient-to-r from-purple-900 via-pink-600 to-purple-900'
+                  : isPrincipal
+                    ? 'bg-gradient-to-r from-navy-900 via-navy-800 to-gold-700'
+                    : theme.coverClass
+              }`}
+            />
+            {isDesigner && (
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-600/30 via-pink-500/30 to-purple-600/30" />
+            )}
+            {theme.shimmerClass && !isDesigner && !isPrincipal && (
+              <div className={`absolute inset-0 overflow-hidden ${theme.shimmerClass}`} />
+            )}
+
+            {/* Badges — top-right inside cover */}
+            <div className="absolute top-3 right-3 flex flex-col items-end gap-1.5 z-10">
+              {isDesigner && (
+                <span className="inline-flex items-center gap-1 bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-lg animate-pulse">
+                  <Palette className="w-3 h-3" /> DESIGNER <Sparkles className="w-3 h-3" />
+                </span>
+              )}
+              {isPrincipal && (
+                <span className="inline-flex items-center gap-1 bg-gold-500 text-navy-900 px-2.5 py-1 rounded-full text-xs font-bold shadow-lg">
+                  <Award className="w-3 h-3" /> PRINCIPAL
                 </span>
               )}
               {profile.graduated && (
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                  <Award className="w-3 h-3" /> Graduated
+                <span className="inline-flex items-center gap-1 bg-green-500 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-lg">
+                  <GraduationCap className="w-3 h-3" /> GRADUATED
+                </span>
+              )}
+              {isBanned && (
+                <span className="inline-flex items-center gap-1 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold shadow-lg">
+                  <Ban className="w-3 h-3" /> BANNED
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Avatar - centered at bottom of cover */}
+          <div className="px-6 pb-6">
+            <div className="flex flex-col items-center -mt-14 mb-4">
+              <div className={`w-28 h-28 rounded-full border-4 ${isDesigner ? 'border-purple-400 ring-4 ring-pink-400/50' : isPrincipal ? 'border-gold-400' : theme.avatarBorderClass} shadow-xl overflow-hidden bg-navy-200 relative`}>
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <span className="text-5xl font-bold text-navy-700">
+                      {(profile.full_name ?? profile.email ?? 'U')[0].toUpperCase()}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Role badge below avatar */}
+            <div className="flex justify-center mb-3">
+              <span className={`px-3 py-1.5 rounded-full text-xs font-semibold capitalize ${roleBadge[profile.role] ?? 'bg-slate-100 text-slate-700'}`}>
+                {profile.role}
+              </span>
+            </div>
+
+            {/* Edit button */}
+            <div className="flex justify-center mb-4">
+              <button
+                onClick={openEdit}
+                disabled={isBanned}
+                className={`btn-secondary flex items-center gap-2 ${isBanned ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title={isBanned ? 'Your account is banned. Editing is disabled.' : ''}
+              >
+                <Edit2 className="w-4 h-4" /> {isBanned ? 'Profile Locked' : 'Edit Profile'}
+              </button>
+              {isBanned && (
+                <p className="text-xs text-red-500 mt-1 text-center">Editing disabled for banned accounts</p>
+              )}
+            </div>
+
+            {/* Name */}
+            <div className="text-center mb-3">
+              <h1 className={`text-2xl font-serif font-bold ${isDesigner ? 'bg-gradient-to-r from-purple-600 via-pink-500 to-purple-600 bg-clip-text text-transparent' : 'text-navy-900'}`}>
+                {profile.full_name ?? 'No name set'}
+              </h1>
+            </div>
+
+            {/* Position / year sub-badges */}
+            <div className="flex flex-wrap justify-center items-center gap-2 mb-4">
+              {(profile.role === 'faculty' || profile.role === 'admin') && profile.position && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-gold-100 text-gold-700">
+                  <Award className="w-3 h-3" /> {profile.position}
+                </span>
+              )}
+              {profile.role === 'student' && profile.student_year && (
+                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-gold-100 text-gold-700">
+                  <Calendar className="w-3 h-3" /> {yearLabel[profile.student_year]}
                 </span>
               )}
             </div>
@@ -338,6 +538,35 @@ export default function Profile() {
                       {profile.graduated ? 'Completed' : 'In Progress'}
                     </p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Faculty Information section */}
+            {(profile.role === 'faculty' || profile.role === 'admin') && (profile.position || profile.qualification || profile.subject_in_charge) && (
+              <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <h3 className="text-sm font-semibold text-navy-900 mb-3 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-gold-500" /> Faculty Information
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  {profile.position && (
+                    <div>
+                      <p className="text-slate-500 text-xs">Position</p>
+                      <p className="font-medium text-navy-900">{profile.position}</p>
+                    </div>
+                  )}
+                  {profile.qualification && (
+                    <div>
+                      <p className="text-slate-500 text-xs">Qualification</p>
+                      <p className="font-medium text-navy-900">{profile.qualification}</p>
+                    </div>
+                  )}
+                  {profile.subject_in_charge && (
+                    <div>
+                      <p className="text-slate-500 text-xs">Subject In Charge</p>
+                      <p className="font-medium text-navy-900">{profile.subject_in_charge}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -446,13 +675,91 @@ export default function Profile() {
                     <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
                       Your graduation certificate is ready. Please contact your faculty or the administration office to collect or download it.
                     </div>
+                    {/* Ask/Inform Button */}
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                      <a
+                        href={`mailto:aizawlbiblecollege24@gmail.com?subject=Certificate Inquiry - ${profile.full_name || 'Student'}&body=Dear Admin,%0D%0A%0D%0AI am writing to inquire about my graduation certificate.%0D%0A%0D%0AStudent Name: ${profile.full_name}%0D%0AEmail: ${profile.email}%0D%0ACourse: ${profile.course || 'Not specified'}%0D%0ACompletion Date: ${profile.completion_date ? new Date(profile.completion_date).toLocaleDateString('en-IN') : 'Not specified'}%0D%0A%0D%0APlease let me know how I can collect or download my certificate.%0D%0A%0D%0AThank you.`}
+                        className="btn-primary text-sm flex items-center justify-center gap-2"
+                      >
+                        <Mail className="w-4 h-4" /> Ask About Certificate
+                      </a>
+                      <a
+                        href="tel:9383007361"
+                        className="btn-secondary text-sm flex items-center justify-center gap-2"
+                      >
+                        <Phone className="w-4 h-4" /> Call Office
+                      </a>
+                    </div>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-slate-500">
-                    <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs text-slate-400">?</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs text-slate-400">?</span>
+                      </div>
+                      <span className="text-sm">Certificate not yet issued. Contact the administration upon completion.</span>
                     </div>
-                    <span className="text-sm">Certificate not yet issued. Contact the administration upon completion.</span>
+                    {/* Inform Admin Button */}
+                    <a
+                      href={`mailto:aizawlbiblecollege24@gmail.com?subject=Certificate Request - ${profile.full_name || 'Student'}&body=Dear Admin,%0D%0A%0D%0AI have completed my course and would like to request my graduation certificate.%0D%0A%0D%0AStudent Name: ${profile.full_name}%0D%0AEmail: ${profile.email}%0D%0ACourse: ${profile.course || 'Not specified'}%0D%0A%0D%0APlease process my certificate at your earliest convenience.%0D%0A%0D%0AThank you.`}
+                      className="btn-gold text-sm flex items-center justify-center gap-2 w-full sm:w-auto"
+                    >
+                      <Mail className="w-4 h-4" /> Request Certificate
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notifications Section */}
+            {notifications.length > 0 && (
+              <div className="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-navy-900 flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-amber-500" />
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span className="px-2 py-0.5 bg-red-500 text-white text-xs font-bold rounded-full">{unreadCount}</span>
+                    )}
+                  </h3>
+                  {unreadCount > 0 && (
+                    <button onClick={markAllRead} className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1">
+                      <CheckCheck className="w-3.5 h-3.5" /> Mark all read
+                    </button>
+                  )}
+                </div>
+                {notifLoading ? (
+                  <div className="flex justify-center py-3"><Loader className="w-4 h-4 animate-spin text-amber-500" /></div>
+                ) : (
+                  <div className="space-y-2">
+                    {notifications.slice(0, 5).map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => !n.is_read && markNotifRead(n.id)}
+                        className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                          n.is_read
+                            ? 'bg-white border-slate-100 opacity-70'
+                            : 'bg-white border-amber-300 shadow-sm'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${n.is_read ? 'bg-slate-300' : 'bg-amber-500'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium ${n.is_read ? 'text-slate-600' : 'text-navy-900'}`}>{n.title}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{n.message}</p>
+                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {new Date(n.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {notifications.length > 5 && (
+                      <p className="text-xs text-slate-400 text-center pt-1">
+                        Showing 5 of {notifications.length} notifications
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -547,11 +854,18 @@ export default function Profile() {
                     onChange={(e) => setPaymentForm((f) => ({ ...f, payment_method: e.target.value as any }))}
                     className="input-field"
                   >
-                    <option value="online">Online Transfer</option>
+                    {razorpayEnabled && razorpayKeyId && (
+                      <option value="online">Pay Online (Razorpay)</option>
+                    )}
                     <option value="cash">Cash</option>
                     <option value="bank_transfer">Bank Transfer</option>
                     <option value="cheque">Cheque</option>
                   </select>
+                  {razorpayEnabled && razorpayKeyId && paymentForm.payment_method === 'online' && (
+                    <p className="text-xs text-blue-600 mt-1.5 flex items-center gap-1">
+                      <CreditCard className="w-3 h-3" /> Secure payment powered by Razorpay
+                    </p>
+                  )}
                 </div>
 
                 <div>

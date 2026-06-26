@@ -107,3 +107,56 @@
 .page-enter {
   animation: slideUp 0.35s ease-out both;
 }
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== PROFILE THEMES ===== */
+
+/* Aurora theme — animated purple/teal gradient */
+@keyframes aurora-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.theme-aurora-cover {
+  background: linear-gradient(135deg, #1a0533, #4c1d95, #0d4f7c, #134e4a, #4c1d95);
+  background-size: 300% 300%;
+  animation: aurora-shift 6s ease infinite;
+}
+
+.theme-aurora-shimmer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  animation: shimmer 2.5s ease infinite;
+}
+
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Midnight theme — starfield pulse */
+@keyframes midnight-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.8; }
+}
+
+.theme-midnight-cover {
+  background: radial-gradient(ellipse at 30% 40%, #1e3a5f 0%, #0a1628 50%, #0d1f3a 100%);
+  animation: midnight-pulse 4s ease-in-out infinite;
+}
+
+/* animate-in for modals */
+@keyframes animate-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-in {
+  animation: animate-in 0.2s ease-out;
+}

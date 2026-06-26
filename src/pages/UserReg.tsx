@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Mail, Lock, User, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { BookOpen, Mail, Lock, User, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function UserReg() {
@@ -12,7 +12,6 @@ export default function UserReg() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,8 +34,8 @@ export default function UserReg() {
       setError(error.message);
       setLoading(false);
     } else {
-      setSuccess(true);
-      setTimeout(() => navigate('/'), 2000);
+      // Redirect to email confirmation page
+      navigate(`/confirm-email?email=${encodeURIComponent(email)}`);
     }
   }
 
@@ -47,20 +46,6 @@ export default function UserReg() {
       options: { redirectTo: window.location.origin },
     });
     if (error) setError(error.message);
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-[calc(100vh-120px)] flex items-center justify-center py-12 px-4">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-          <h2 className="text-xl font-serif font-bold text-navy-900">Registration Successful!</h2>
-          <p className="text-slate-500 mt-2 text-sm">Redirecting you to the home page...</p>
-        </div>
-      </div>
-    );
   }
 
   return (

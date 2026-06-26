@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import SignatureCanvas from 'react-signature-canvas';
-import { CheckCircle, AlertCircle, Camera, RotateCcw, Upload, FileText, Download } from 'lucide-react';
+import { CheckCircle, AlertCircle, Camera, RotateCcw, Upload, FileText, Download, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -206,22 +207,15 @@ export default function ApplicationForm() {
           <p className="text-slate-400 max-w-lg mx-auto text-xs md:text-sm">
             Apply for admission to Aizawl Bible College. Fill in the form below and submit — it takes just a few minutes.
           </p>
-          {formDownloadUrl ? (
-            <a
-              href={formDownloadUrl}
-              download
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-gold-500 hover:bg-gold-400 text-navy-900 font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors mt-3"
+          <div className="flex justify-center mt-4">
+            <Link
+              to="/downloads#application"
+              className="inline-flex items-center gap-2 text-gold-300 hover:text-gold-100 text-sm transition-colors border border-gold-500/30 px-5 py-2.5 rounded-lg hover:bg-white/5"
             >
-              <Download className="w-4 h-4" />
-              Download Application Form
-            </a>
-          ) : (
-            <p className="text-slate-300 text-xs mt-3">
-              No application form file available — fill in the form below.
-            </p>
-          )}
+              <ExternalLink className="w-4 h-4" />
+              View Application Form in Downloads
+            </Link>
+          </div>
         </div>
       </section>
 

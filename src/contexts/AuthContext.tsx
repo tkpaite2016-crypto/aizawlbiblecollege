@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Session, User } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { Session, User, RealtimeChannel } from '@supabase/supabase-js';
 import { supabase, Profile } from '../lib/supabase';
 
 type AuthContextType = {
@@ -31,6 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const profileChannelRef = useRef<RealtimeChannel | null>(null);
 
   async function fetchProfile(userId: string) {
     setProfileLoading(true);
@@ -76,6 +77,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function refreshProfile() {
     if (user) await fetchProfile(user.id);
   }
+
+  // Set up realtime subscription for profile changes
+  useEffect(() => {
+    if (user?.id && !profileChannelRef.current) {
+      profileChannelRef.current = supabase
+        .channel(`profile-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'profiles',
+            filter: `id=eq.${user.id}`,
+          },
+          (payload) => {
+            setProfile(payload.new as Profile);
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      if (profileChannelRef.current) {
+        supabase.removeChannel(profileChannelRef.current);
+        profileChannelRef.current = null;
+      }
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {

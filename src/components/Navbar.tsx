@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown, User, LogOut, LayoutDashboard, CreditCard } from 'lucide-react';
+import { Menu, X, ChevronDown, User, LogOut, LayoutDashboard, CreditCard, Bell } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 const navLinks = [
   { label: 'Home', path: '/' },
@@ -28,6 +29,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [dropdown, setDropdown] = useState('');
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const { user, profile, signOut } = useAuth();
   const location = useLocation();
   const navRef = useRef<HTMLElement>(null);
@@ -42,6 +44,21 @@ export default function Navbar() {
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // Load unread contact messages count for admin
+  useEffect(() => {
+    if (profile?.role === 'admin') {
+      loadUnreadCount();
+    }
+  }, [profile?.role]);
+
+  async function loadUnreadCount() {
+    const { count } = await supabase
+      .from('contact_messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_read', false);
+    setUnreadMessages(count ?? 0);
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -88,7 +105,7 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop nav */}
-          <div className="hidden md:flex items-center flex-1 min-w-0 overflow-x-auto scrollbar-none gap-0.5 px-1">
+          <div className="hidden md:flex items-center flex-1 min-w-0 gap-0.5 px-1">
             {navLinks.map((link) =>
               link.children ? (
                 <div
@@ -98,7 +115,7 @@ export default function Navbar() {
                   onMouseLeave={() => setDropdown('')}
                 >
                   <button
-                    onClick={() => toggleDropdown(link.label)}
+                    onClick={() => setDropdown(link.label)}
                     className="flex items-center gap-0.5 px-1.5 py-1.5 lg:px-2.5 text-slate-200 hover:text-white text-xs lg:text-sm font-medium rounded-lg hover:bg-white/10 transition-colors whitespace-nowrap"
                   >
                     {link.label}
@@ -143,11 +160,27 @@ export default function Navbar() {
           {/* Auth buttons / user menu */}
           <div className="hidden md:flex items-center gap-1 flex-shrink-0">
             {user ? (
-              <div className="relative">
-                <button
-                  onClick={() => toggleDropdown('user')}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
-                >
+              <>
+                {/* Admin notification bell - smaller and responsive */}
+                {profile?.role === 'admin' && (
+                  <Link
+                    to="/admin?tab=messages"
+                    className="relative p-1.5 text-white hover:bg-white/10 rounded-lg transition-colors"
+                    title={`${unreadMessages} unread message${unreadMessages !== 1 ? 's' : ''}`}
+                  >
+                    <Bell className="w-4 h-4" />
+                    {unreadMessages > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full px-1">
+                        {unreadMessages > 9 ? '9+' : unreadMessages}
+                      </span>
+                    )}
+                  </Link>
+                )}
+                <div className="relative">
+                  <button
+                    onClick={() => toggleDropdown('user')}
+                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                  >
                   <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center flex-shrink-0">
                     {profile?.avatar_url ? (
                       <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
@@ -176,14 +209,21 @@ export default function Navbar() {
                         <Link to="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
                           <LayoutDashboard className="w-4 h-4" /> Admin Dashboard
                         </Link>
-                        <Link to="/transactions" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
-                          <CreditCard className="w-4 h-4" /> Transactions
+                        <Link to="/admin?tab=messages" className="flex items-center justify-between px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
+                          <span className="flex items-center gap-2">
+                            <Bell className="w-4 h-4" /> Messages
+                          </span>
+                          {unreadMessages > 0 && (
+                            <span className="min-w-[20px] h-5 bg-red-500 text-white text-xs font-bold flex items-center justify-center rounded-full px-1.5">
+                              {unreadMessages}
+                            </span>
+                          )}
                         </Link>
                       </>
                     )}
-                    {profile?.role === 'faculty' && (
+                    {profile?.role === 'finance' && (
                       <Link to="/transactions" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50">
-                        <CreditCard className="w-4 h-4" /> Fee Transactions
+                        <CreditCard className="w-4 h-4" /> Transactions
                       </Link>
                     )}
                     {profile?.role === 'student' && (
@@ -200,6 +240,7 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
+            </>
             ) : (
               <>
                 <Link to="/login" className="px-2.5 py-1.5 text-xs lg:text-sm text-white font-medium hover:text-gold-400 transition-colors whitespace-nowrap">
@@ -279,18 +320,13 @@ export default function Navbar() {
                       <User className="w-4 h-4" /> My Profile
                     </Link>
                     {profile?.role === 'admin' && (
-                      <>
-                        <Link to="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/10 rounded-lg">
-                          <LayoutDashboard className="w-4 h-4" /> Admin Dashboard
-                        </Link>
-                        <Link to="/transactions" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/10 rounded-lg">
-                          <CreditCard className="w-4 h-4" /> Transactions
-                        </Link>
-                      </>
+                      <Link to="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/10 rounded-lg">
+                        <LayoutDashboard className="w-4 h-4" /> Admin Dashboard
+                      </Link>
                     )}
-                    {profile?.role === 'faculty' && (
+                    {profile?.role === 'finance' && (
                       <Link to="/transactions" className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-200 hover:bg-white/10 rounded-lg">
-                        <CreditCard className="w-4 h-4" /> Fee Transactions
+                        <CreditCard className="w-4 h-4" /> Transactions
                       </Link>
                     )}
                     {profile?.role === 'student' && (

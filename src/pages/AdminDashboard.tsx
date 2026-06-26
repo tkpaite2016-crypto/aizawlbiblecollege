@@ -5,13 +5,15 @@ import {
   Plus, Trash2, CreditCard as EditIcon, Check, X, AlertCircle,
   MessageSquare, Upload, Loader, Mail, GraduationCap, Award,
   ShieldCheck, UserCheck, AlertTriangle, Pencil, Download,
+  CreditCard, Settings, Save, Ban, Shield, Palette,
 } from 'lucide-react';
 import { supabase, Profile, Notice, Teacher, SiteSetting, ContactMessage, Download as DownloadType } from '../lib/supabase';
+import { THEMES } from '../lib/themes';
 import { useAuth } from '../contexts/AuthContext';
 import { pdf } from '@react-pdf/renderer';
 import { CertificateDocument } from '../components/CertificateDocument';
 
-type Tab = 'overview' | 'users' | 'students' | 'admins' | 'notices' | 'teachers' | 'applications' | 'downloads' | 'settings' | 'messages';
+type Tab = 'overview' | 'users' | 'students' | 'admins' | 'notices' | 'teachers' | 'applications' | 'downloads' | 'settings' | 'messages' | 'payment';
 
 type GraduationForm = {
   userId: string;
@@ -97,13 +99,54 @@ const catLabel: Record<string, string> = {
   policy: 'Policy',
 };
 
+type Application = {
+  id: string;
+  user_id: string | null;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  dob: string | null;
+  gender: string | null;
+  address: string | null;
+  applying_for: string | null;
+  previous_education: string | null;
+  church_name: string | null;
+  pastor_name: string | null;
+  statement: string | null;
+  status: string;
+  reviewed_by: string | null;
+  review_notes: string | null;
+  submitted_at: string;
+  reviewed_at: string | null;
+  course_applied: string | null;
+  pin_code: string | null;
+  guardian_name: string | null;
+  parent_occupation: string | null;
+  annual_income: string | null;
+  mother_tongue: string | null;
+  other_languages: string | null;
+  marital_status: string | null;
+  academic_qualifications: any;
+  born_again: string | null;
+  water_baptism_date: string | null;
+  denomination: string | null;
+  church_involvement: string | null;
+  statement_of_purpose: string | null;
+  calling_aim: string | null;
+  practices_vices: boolean | null;
+  can_pay_fees: boolean | null;
+  fee_sponsor: string | null;
+  passport_photo_url: string | null;
+  signature_data_url: string | null;
+};
+
 export default function AdminDashboard() {
   const { profile: adminProfile } = useAuth();
   const [tab, setTab] = useState<Tab>('overview');
   const [users, setUsers] = useState<Profile[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [applications, setApplications] = useState<any[]>([]);
+  const [applications, setApplications] = useState<Application[]>([]);
   const [siteSettings, setSiteSettings] = useState<SiteSetting[]>([]);
   const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
   const [downloads, setDownloads] = useState<DownloadType[]>([]);
@@ -111,7 +154,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({ users: 0, students: 0, faculty: 0, admins: 0, notices: 0, pending: 0, unread_messages: 0 });
 
   // Notice form
-  const [noticeForm, setNoticeForm] = useState({ title: '', content: '', category: 'general', priority: 'medium' });
+  const [noticeForm, setNoticeForm] = useState({ title: '', content: '', category: 'general', priority: 'medium', image_url: '' });
   const [savingNotice, setSavingNotice] = useState(false);
   const [noticeError, setNoticeError] = useState('');
   const [showNoticeForm, setShowNoticeForm] = useState(false);
@@ -129,6 +172,12 @@ export default function AdminDashboard() {
   const [showDownloadForm, setShowDownloadForm] = useState(false);
   const [savingDownload, setSavingDownload] = useState(false);
 
+  // Application detail/edit modal
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [showAppModal, setShowAppModal] = useState(false);
+  const [appForm, setAppForm] = useState({ status: 'pending', review_notes: '' });
+  const [savingApp, setSavingApp] = useState(false);
+
   // Site settings upload
   const [settingUploading, setSettingUploading] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState('');
@@ -142,12 +191,23 @@ export default function AdminDashboard() {
   const [greetingSaving, setGreetingSaving] = useState(false);
   const [greetingImageUploading, setGreetingImageUploading] = useState(false);
 
+  // Hero opacity
+  const [heroOpacity, setHeroOpacity] = useState(0.88);
+  const [heroOpacitySaving, setHeroOpacitySaving] = useState(false);
+
   // Board members
   const [boardMembers, setBoardMembers] = useState<any[]>([]);
   const [showBoardMemberForm, setShowBoardMemberForm] = useState(false);
   const [boardMemberForm, setBoardMemberForm] = useState({ name: '', designation: '', photo_url: '', display_order: 0 });
   const [savingBoardMember, setSavingBoardMember] = useState(false);
   const [boardPhotoUploading, setBoardPhotoUploading] = useState(false);
+  const [editingBoardMember, setEditingBoardMember] = useState<any | null>(null);
+  const [boardEditForm, setBoardEditForm] = useState({ name: '', designation: '', photo_url: '', display_order: 0 });
+  const [savingBoardEdit, setSavingBoardEdit] = useState(false);
+  const [boardEditPhotoUploading, setBoardEditPhotoUploading] = useState(false);
+
+  // Notice image upload
+  const [noticeImageUploading, setNoticeImageUploading] = useState(false);
 
   // Graduation modal
   const [showGraduationModal, setShowGraduationModal] = useState(false);
@@ -158,10 +218,21 @@ export default function AdminDashboard() {
   // Confirm modal (replaces browser confirm())
   const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig | null>(null);
 
+  // Student search
+  const [studentSearch, setStudentSearch] = useState('');
+
+  // Razorpay payment settings
+  const [razorpayEnabled, setRazorpayEnabled] = useState(false);
+  const [razorpayKeyId, setRazorpayKeyId] = useState('');
+  const [razorpayKeySecret, setRazorpayKeySecret] = useState('');
+  const [razorpayWebhookSecret, setRazorpayWebhookSecret] = useState('');
+  const [paymentSettingsSaving, setPaymentSettingsSaving] = useState(false);
+  const [paymentSettingsSuccess, setPaymentSettingsSuccess] = useState(false);
+
   // Faculty edit modal
   const [facultyEditTarget, setFacultyEditTarget] = useState<Profile | null>(null);
   const [facultyEditForm, setFacultyEditForm] = useState({
-    full_name: '', qualification: '', subject_in_charge: '', bio: '', phone: '', address: '',
+    full_name: '', qualification: '', subject_in_charge: '', bio: '', phone: '', address: '', position: '',
   });
   const [savingFacultyEdit, setSavingFacultyEdit] = useState(false);
   const [facultyPhotoUploading, setFacultyPhotoUploading] = useState(false);
@@ -214,6 +285,20 @@ export default function AdminDashboard() {
       if (gs.setting_key === 'principal_greeting_title') setGreetingTitle(gs.setting_value || 'Principal, Aizawl Bible College');
       if (gs.setting_key === 'principal_greeting_image') setGreetingImage(gs.setting_value || '/images/PrincipalsGreets.jpg');
     });
+    // Load hero opacity
+    const heroOpacitySetting = s.find((x) => x.setting_key === 'home_hero_opacity');
+    if (heroOpacitySetting) setHeroOpacity(parseFloat(heroOpacitySetting.setting_value) || 0.88);
+
+    // Load Razorpay payment settings
+    const razorpayEnabledSetting = s.find((x) => x.setting_key === 'razorpay_enabled');
+    if (razorpayEnabledSetting) setRazorpayEnabled(razorpayEnabledSetting.setting_value === 'true');
+    const razorpayKeyIdSetting = s.find((x) => x.setting_key === 'razorpay_key_id');
+    if (razorpayKeyIdSetting) setRazorpayKeyId(razorpayKeyIdSetting.setting_value || '');
+    const razorpayKeySecretSetting = s.find((x) => x.setting_key === 'razorpay_key_secret');
+    if (razorpayKeySecretSetting) setRazorpayKeySecret(razorpayKeySecretSetting.setting_value || '');
+    const razorpayWebhookSetting = s.find((x) => x.setting_key === 'razorpay_webhook_secret');
+    if (razorpayWebhookSetting) setRazorpayWebhookSecret(razorpayWebhookSetting.setting_value || '');
+
     setLoading(false);
   }
 
@@ -345,6 +430,7 @@ export default function AdminDashboard() {
       bio: u.bio ?? '',
       phone: u.phone ?? '',
       address: u.address ?? '',
+      position: u.position ?? '',
     });
   }
 
@@ -370,12 +456,13 @@ export default function AdminDashboard() {
       bio: facultyEditForm.bio || null,
       phone: facultyEditForm.phone || null,
       address: facultyEditForm.address || null,
+      position: facultyEditForm.position || null,
       updated_at: new Date().toISOString(),
     }).eq('id', facultyEditTarget.id);
     if (!error) {
       setUsers((prev) => prev.map((u) =>
         u.id === facultyEditTarget.id
-          ? { ...u, ...facultyEditForm, qualification: facultyEditForm.qualification || null, subject_in_charge: facultyEditForm.subject_in_charge || null }
+          ? { ...u, ...facultyEditForm, qualification: facultyEditForm.qualification || null, subject_in_charge: facultyEditForm.subject_in_charge || null, position: facultyEditForm.position || null }
           : u
       ));
       setFacultyEditTarget(null);
@@ -387,9 +474,16 @@ export default function AdminDashboard() {
     e.preventDefault();
     setNoticeError('');
     setSavingNotice(true);
-    const { error } = await supabase.from('notices').insert({ ...noticeForm, author_id: adminProfile?.id });
+    const { error } = await supabase.from('notices').insert({
+      title: noticeForm.title,
+      content: noticeForm.content,
+      category: noticeForm.category,
+      priority: noticeForm.priority,
+      image_url: noticeForm.image_url || null,
+      author_id: adminProfile?.id,
+    });
     if (error) { setNoticeError(error.message); setSavingNotice(false); return; }
-    setNoticeForm({ title: '', content: '', category: 'general', priority: 'medium' });
+    setNoticeForm({ title: '', content: '', category: 'general', priority: 'medium', image_url: '' });
     setShowNoticeForm(false);
     setSavingNotice(false);
     loadData();
@@ -428,7 +522,55 @@ export default function AdminDashboard() {
 
   async function updateAppStatus(id: string, status: string) {
     await supabase.from('applications').update({ status, reviewed_by: adminProfile?.id, reviewed_at: new Date().toISOString() }).eq('id', id);
-    setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status } : a)));
+    setApplications((prev) => prev.map((a) => (a.id === id ? { ...a, status, reviewed_by: adminProfile?.id, reviewed_at: new Date().toISOString() } : a)));
+    recomputeStats(users, notices, applications, contactMessages);
+  }
+
+  function openAppDetail(app: Application) {
+    setSelectedApp(app);
+    setAppForm({ status: app.status, review_notes: app.review_notes || '' });
+    setShowAppModal(true);
+  }
+
+  async function saveAppDetails(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedApp) return;
+    setSavingApp(true);
+    const { error } = await supabase
+      .from('applications')
+      .update({
+        status: appForm.status,
+        review_notes: appForm.review_notes || null,
+        reviewed_by: adminProfile?.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq('id', selectedApp.id);
+    if (!error) {
+      setApplications((prev) => prev.map((a) => (a.id === selectedApp.id ? { ...a, status: appForm.status, review_notes: appForm.review_notes, reviewed_by: adminProfile?.id, reviewed_at: new Date().toISOString() } : a)));
+      recomputeStats(users, notices, applications, contactMessages);
+    }
+    setSavingApp(false);
+    setShowAppModal(false);
+    setSelectedApp(null);
+  }
+
+  async function deleteApplication(id: string) {
+    const { error } = await supabase.from('applications').delete().eq('id', id);
+    if (!error) {
+      setApplications((prev) => prev.filter((a) => a.id !== id));
+      recomputeStats(users, notices, applications, contactMessages);
+    }
+  }
+
+  function confirmDeleteApplication(app: Application) {
+    setConfirmConfig({
+      title: 'Delete Application',
+      message: `Are you sure you want to permanently delete the application from ${app.full_name}?`,
+      detail: 'This action cannot be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => deleteApplication(app.id),
+    });
   }
 
   // Downloads
@@ -524,6 +666,56 @@ export default function AdminDashboard() {
     setGreetingSaving(false);
   }
 
+  async function saveHeroOpacity() {
+    setHeroOpacitySaving(true);
+    await supabase.from('site_settings').update({ setting_value: heroOpacity.toString() }).eq('setting_key', 'home_hero_opacity');
+    setSiteSettings((prev) => prev.map((s) => s.setting_key === 'home_hero_opacity' ? { ...s, setting_value: heroOpacity.toString() } : s));
+    setHeroOpacitySaving(false);
+  }
+
+  async function savePaymentSettings(e: React.FormEvent) {
+    e.preventDefault();
+    setPaymentSettingsSaving(true);
+    setPaymentSettingsSuccess(false);
+
+    const settingsToUpdate = [
+      { key: 'razorpay_enabled', value: razorpayEnabled ? 'true' : 'false' },
+      { key: 'razorpay_key_id', value: razorpayKeyId },
+      { key: 'razorpay_key_secret', value: razorpayKeySecret },
+      { key: 'razorpay_webhook_secret', value: razorpayWebhookSecret },
+    ];
+
+    for (const setting of settingsToUpdate) {
+      await supabase.from('site_settings').update({ setting_value: setting.value }).eq('setting_key', setting.key);
+    }
+
+    setSiteSettings((prev) => {
+      const next = [...prev];
+      for (const setting of settingsToUpdate) {
+        const idx = next.findIndex((s) => s.setting_key === setting.key);
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], setting_value: setting.value };
+        }
+      }
+      return next;
+    });
+
+    setPaymentSettingsSaving(false);
+    setPaymentSettingsSuccess(true);
+    setTimeout(() => setPaymentSettingsSuccess(false), 2500);
+  }
+
+  async function uploadNoticeImage(file: File): Promise<string | null> {
+    setNoticeImageUploading(true);
+    const ext = file.name.split('.').pop();
+    const fileName = `notices/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('photos').upload(fileName, file, { upsert: true });
+    if (error) { setNoticeImageUploading(false); return null; }
+    const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
+    setNoticeImageUploading(false);
+    return data.publicUrl;
+  }
+
   async function uploadGreetingImage(file: File) {
     setGreetingImageUploading(true);
     const ext = file.name.split('.').pop();
@@ -544,6 +736,78 @@ export default function AdminDashboard() {
   async function updateUserPataRegNo(userId: string, pataRegNo: string) {
     await supabase.from('profiles').update({ pata_reg_no: pataRegNo || null }).eq('id', userId);
     setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, pata_reg_no: pataRegNo || null } : u)));
+  }
+
+  async function updateUserTheme(userId: string, theme: string) {
+    await supabase.from('profiles').update({ profile_theme: theme }).eq('id', userId);
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, profile_theme: theme } : u)));
+  }
+
+  async function banUser(userId: string) {
+    await supabase.from('profiles').update({ is_banned: true }).eq('id', userId);
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_banned: true } : u)));
+  }
+
+  async function unbanUser(userId: string) {
+    await supabase.from('profiles').update({ is_banned: false }).eq('id', userId);
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_banned: false } : u)));
+  }
+
+  function confirmBanUser(user: Profile) {
+    setConfirmConfig({
+      title: 'Ban User',
+      message: `Are you sure you want to ban ${user.full_name || user.email}? They will not be able to post in forums or edit their profile.`,
+      confirmLabel: 'Ban User',
+      danger: true,
+      onConfirm: () => banUser(user.id),
+    });
+  }
+
+  function confirmUnbanUser(user: Profile) {
+    setConfirmConfig({
+      title: 'Unban User',
+      message: `Are you sure you want to unban ${user.full_name || user.email}? They will regain full access to the site.`,
+      confirmLabel: 'Unban User',
+      danger: false,
+      onConfirm: () => unbanUser(user.id),
+    });
+  }
+
+  async function deleteUser(userId: string) {
+    // Call the edge function to delete user completely from Auth
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user-auth`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ userId }),
+    });
+
+    if (response.ok) {
+      setUsers((prev) => {
+        const next = prev.filter((u) => u.id !== userId);
+        recomputeStats(next, notices, applications, contactMessages);
+        return next;
+      });
+    } else {
+      const error = await response.json();
+      console.error('Failed to delete user:', error);
+    }
+  }
+
+  function confirmDeleteUser(user: Profile) {
+    setConfirmConfig({
+      title: 'Delete User',
+      message: `Are you sure you want to permanently delete ${user.full_name || user.email}? This action cannot be undone.`,
+      detail: 'All their data including transactions, posts, and notifications will be removed.',
+      confirmLabel: 'Delete User',
+      danger: true,
+      onConfirm: () => deleteUser(user.id),
+    });
   }
 
   // Board member functions
@@ -578,6 +842,39 @@ export default function AdminDashboard() {
     setBoardMembers((prev) => prev.filter((b) => b.id !== id));
   }
 
+  function openBoardMemberEdit(b: any) {
+    setEditingBoardMember(b);
+    setBoardEditForm({ name: b.name, designation: b.designation ?? '', photo_url: b.photo_url ?? '', display_order: b.display_order ?? 0 });
+  }
+
+  async function uploadBoardEditPhoto(file: File): Promise<string | null> {
+    setBoardEditPhotoUploading(true);
+    const ext = file.name.split('.').pop();
+    const fileName = `board/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from('photos').upload(fileName, file, { upsert: true });
+    if (error) { setBoardEditPhotoUploading(false); return null; }
+    const { data } = supabase.storage.from('photos').getPublicUrl(fileName);
+    setBoardEditPhotoUploading(false);
+    return data.publicUrl;
+  }
+
+  async function saveBoardMemberEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingBoardMember) return;
+    setSavingBoardEdit(true);
+    const { error } = await supabase.from('board_members').update({
+      name: boardEditForm.name,
+      designation: boardEditForm.designation || null,
+      photo_url: boardEditForm.photo_url || null,
+      display_order: boardEditForm.display_order || 0,
+    }).eq('id', editingBoardMember.id);
+    if (!error) {
+      setBoardMembers((prev) => prev.map((b) => b.id === editingBoardMember.id ? { ...b, ...boardEditForm, designation: boardEditForm.designation || null, photo_url: boardEditForm.photo_url || null } : b));
+      setEditingBoardMember(null);
+    }
+    setSavingBoardEdit(false);
+  }
+
   async function markMessageRead(id: string) {
     await supabase.from('contact_messages').update({ is_read: true }).eq('id', id);
     setContactMessages((prev) => prev.map((m) => (m.id === id ? { ...m, is_read: true } : m)));
@@ -597,6 +894,19 @@ export default function AdminDashboard() {
   const adminList = users.filter((u) => u.role === 'admin');
   const facultyList = users.filter((u) => u.role === 'faculty');
 
+  // Filtered student list based on search
+  const filteredStudentList = studentList.filter((s) => {
+    if (!studentSearch.trim()) return true;
+    const search = studentSearch.toLowerCase();
+    return (
+      s.full_name?.toLowerCase().includes(search) ||
+      s.email?.toLowerCase().includes(search) ||
+      s.course?.toLowerCase().includes(search) ||
+      s.student_year?.toLowerCase().includes(search) ||
+      s.phone?.includes(search)
+    );
+  });
+
   const tabs: { id: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'users', label: 'Users', icon: Users },
@@ -607,6 +917,7 @@ export default function AdminDashboard() {
     { id: 'applications', label: 'Applications', icon: FileText },
     { id: 'downloads', label: 'Downloads', icon: Download },
     { id: 'settings', label: 'Site Images', icon: Image },
+    { id: 'payment', label: 'Payment', icon: CreditCard },
     { id: 'messages', label: 'Messages', icon: MessageSquare, badge: stats.unread_messages },
   ];
 
@@ -623,6 +934,8 @@ export default function AdminDashboard() {
             <tr>
               <th className="px-4 py-3 text-left">Name / Email</th>
               <th className="px-4 py-3 text-left">Role</th>
+              <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Theme</th>
               {isStudentView && <th className="px-4 py-3 text-left">Course</th>}
               {isStudentView && <th className="px-4 py-3 text-left">Year</th>}
               {isStudentView && <th className="px-4 py-3 text-left">Graduated</th>}
@@ -633,7 +946,7 @@ export default function AdminDashboard() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {list.map((u) => (
-              <tr key={u.id} className="hover:bg-slate-50 transition-colors">
+              <tr key={u.id} className={`hover:bg-slate-50 transition-colors ${u.is_banned ? 'bg-red-50' : ''}`}>
                 <td className="px-4 py-3">
                   <Link
                     to={`/admin/users/${u.id}`}
@@ -649,8 +962,31 @@ export default function AdminDashboard() {
                     onChange={(e) => updateUserRole(u.id, e.target.value)}
                     className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white"
                   >
-                    {['standard', 'student', 'faculty', 'admin'].map((r) => (
+                    {['standard', 'student', 'faculty', 'admin', 'finance'].map((r) => (
                       <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </td>
+                <td className="px-4 py-3">
+                  {u.is_banned ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                      <Ban className="w-3 h-3" /> Banned
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                      <Shield className="w-3 h-3" /> Active
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <select
+                    value={u.profile_theme ?? 'classic'}
+                    onChange={(e) => updateUserTheme(u.id, e.target.value)}
+                    className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-navy-500 bg-white"
+                    title="Set profile theme"
+                  >
+                    {THEMES.map((t) => (
+                      <option key={t.id} value={t.id}>{t.label}{t.animated ? ' ✨' : ''}</option>
                     ))}
                   </select>
                 </td>
@@ -705,40 +1041,66 @@ export default function AdminDashboard() {
                   {new Date(u.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </td>
                 <td className="px-4 py-3">
-                  {u.role === 'student' && (
-                    <div className="flex items-center gap-1">
-                      {u.graduated ? (
-                        <>
-                          {u.certificate_url && (
-                            <a
-                              href={u.certificate_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                              title="View Certificate"
+                  <div className="flex items-center gap-1">
+                    {u.role === 'student' && (
+                      <>
+                        {u.graduated ? (
+                          <>
+                            {u.certificate_url && (
+                              <a
+                                href={u.certificate_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                                title="View Certificate"
+                              >
+                                <Award className="w-4 h-4" />
+                              </a>
+                            )}
+                            <button
+                              onClick={() => confirmRevokeGraduation(u)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                              title="Revoke Graduation"
                             >
-                              <Award className="w-4 h-4" />
-                            </a>
-                          )}
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
                           <button
-                            onClick={() => confirmRevokeGraduation(u)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded"
-                            title="Revoke Graduation"
+                            onClick={() => openGraduationModal(u)}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                            title="Mark as Graduated"
                           >
-                            <X className="w-4 h-4" />
+                            <GraduationCap className="w-4 h-4" />
                           </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => openGraduationModal(u)}
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                          title="Mark as Graduated"
-                        >
-                          <GraduationCap className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  )}
+                        )}
+                      </>
+                    )}
+                    {u.is_banned ? (
+                      <button
+                        onClick={() => confirmUnbanUser(u)}
+                        className="p-1.5 text-green-600 hover:bg-green-50 rounded"
+                        title="Unban User"
+                      >
+                        <Shield className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => confirmBanUser(u)}
+                        className="p-1.5 text-amber-500 hover:bg-amber-50 rounded"
+                        title="Ban User"
+                      >
+                        <Ban className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => confirmDeleteUser(u)}
+                      className="p-1.5 text-red-500 hover:bg-red-50 rounded"
+                      title="Delete User"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -816,12 +1178,35 @@ export default function AdminDashboard() {
             {/* STUDENTS */}
             {tab === 'students' && (
               <div className="card overflow-hidden">
-                <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-                  <UserCheck className="w-5 h-5 text-blue-600" />
-                  <h2 className="font-serif font-bold text-navy-900">Students</h2>
-                  <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full ml-auto">{studentList.length} enrolled</span>
+                <div className="p-4 border-b border-slate-100">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <UserCheck className="w-5 h-5 text-blue-600" />
+                      <h2 className="font-serif font-bold text-navy-900">Students</h2>
+                      <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+                        {filteredStudentList.length}{studentSearch.trim() && studentList.length > filteredStudentList.length ? ` of ${studentList.length}` : ''} enrolled
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={studentSearch}
+                        onChange={(e) => setStudentSearch(e.target.value)}
+                        placeholder="Search by name, email, course..."
+                        className="input-field text-sm pr-8 w-64"
+                      />
+                      {studentSearch && (
+                        <button
+                          onClick={() => setStudentSearch('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                {renderUserTable(studentList, true)}
+                {renderUserTable(filteredStudentList, true)}
               </div>
             )}
 
@@ -864,8 +1249,39 @@ export default function AdminDashboard() {
                           {['low', 'medium', 'high'].map((p) => <option key={p} value={p}>{p}</option>)}
                         </select>
                       </div>
+                      {/* Notice image */}
+                      <div>
+                        <label className="label text-xs mb-1.5 block">Thumbnail / Banner Image (optional)</label>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          {noticeForm.image_url && (
+                            <div className="relative w-24 h-16 rounded-lg overflow-hidden border border-slate-200 flex-shrink-0">
+                              <img src={noticeForm.image_url} alt="" className="w-full h-full object-cover" />
+                              <button type="button" onClick={() => setNoticeForm((f) => ({ ...f, image_url: '' }))} className="absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs">×</button>
+                            </div>
+                          )}
+                          <label
+                            htmlFor="notice-image-upload"
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${noticeImageUploading ? 'bg-slate-100 text-slate-400' : 'bg-navy-800 text-white hover:bg-navy-700'}`}
+                          >
+                            {noticeImageUploading ? <><Loader className="w-4 h-4 animate-spin" /> Uploading...</> : <><Upload className="w-4 h-4" /> {noticeForm.image_url ? 'Change Image' : 'Upload Image'}</>}
+                          </label>
+                          <input
+                            id="notice-image-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const url = await uploadNoticeImage(file);
+                              if (url) setNoticeForm((f) => ({ ...f, image_url: url }));
+                              e.target.value = '';
+                            }}
+                          />
+                        </div>
+                      </div>
                       <div className="flex gap-2">
-                        <button type="submit" disabled={savingNotice} className="btn-primary">{savingNotice ? 'Saving...' : 'Save Notice'}</button>
+                        <button type="submit" disabled={savingNotice || noticeImageUploading} className="btn-primary">{savingNotice ? 'Saving...' : 'Save Notice'}</button>
                         <button type="button" onClick={() => setShowNoticeForm(false)} className="btn-secondary">Cancel</button>
                       </div>
                     </form>
@@ -1207,9 +1623,14 @@ export default function AdminDashboard() {
                               <td className="px-4 py-3 text-slate-600">{b.designation ?? '—'}</td>
                               <td className="px-4 py-3 text-slate-500 text-xs">{b.display_order ?? 0}</td>
                               <td className="px-4 py-3 text-right">
-                                <button onClick={() => deleteBoardMember(b.id)} className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50">
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center justify-end gap-1">
+                                  <button onClick={() => openBoardMemberEdit(b)} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded" title="Edit">
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button onClick={() => deleteBoardMember(b.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete">
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1259,19 +1680,194 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
-                              {a.status === 'pending' && (
-                                <>
-                                  <button onClick={() => updateAppStatus(a.id, 'accepted')} className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Accept"><Check className="w-4 h-4" /></button>
-                                  <button onClick={() => updateAppStatus(a.id, 'reviewed')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded" title="Mark Reviewed"><EditIcon className="w-4 h-4" /></button>
-                                  <button onClick={() => updateAppStatus(a.id, 'rejected')} className="p-1.5 text-red-600 hover:bg-red-50 rounded" title="Reject"><X className="w-4 h-4" /></button>
-                                </>
+                              <button onClick={() => openAppDetail(a)} className="p-1.5 text-navy-600 hover:bg-navy-50 rounded" title="View Details"><EditIcon className="w-4 h-4" /></button>
+                              {a.status !== 'accepted' && (
+                                <button onClick={() => updateAppStatus(a.id, 'accepted')} className="p-1.5 text-green-600 hover:bg-green-50 rounded" title="Accept"><Check className="w-4 h-4" /></button>
                               )}
+                              <button onClick={() => confirmDeleteApplication(a)} className="p-1.5 text-red-500 hover:bg-red-50 rounded" title="Delete"><Trash2 className="w-4 h-4" /></button>
                             </div>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            )}
+
+            {/* Application Detail Modal */}
+            {showAppModal && selectedApp && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setShowAppModal(false)}>
+                <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="sticky top-0 bg-white border-b border-slate-100 p-4 flex items-center justify-between">
+                    <h3 className="font-serif font-bold text-navy-900">Application Details</h3>
+                    <button onClick={() => setShowAppModal(false)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
+                  </div>
+                  <form onSubmit={saveAppDetails} className="p-6 space-y-6">
+                    {/* Personal Information */}
+                    <div>
+                      <h4 className="font-semibold text-navy-900 text-sm mb-3 flex items-center gap-2"><User className="w-4 h-4 text-gold-500" /> Personal Information</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Full Name</p>
+                          <p className="text-sm font-medium text-navy-900">{selectedApp.full_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Email</p>
+                          <p className="text-sm text-navy-900">{selectedApp.email}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Phone</p>
+                          <p className="text-sm text-navy-900">{selectedApp.phone || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Date of Birth</p>
+                          <p className="text-sm text-navy-900">{selectedApp.dob ? new Date(selectedApp.dob).toLocaleDateString('en-IN') : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Gender</p>
+                          <p className="text-sm text-navy-900 capitalize">{selectedApp.gender || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Marital Status</p>
+                          <p className="text-sm text-navy-900 capitalize">{selectedApp.marital_status || '—'}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-xs text-slate-400 mb-0.5">Address</p>
+                          <p className="text-sm text-navy-900">{selectedApp.address || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Church Information */}
+                    <div>
+                      <h4 className="font-semibold text-navy-900 text-sm mb-3 flex items-center gap-2"><BookOpen className="w-4 h-4 text-gold-500" /> Church Background</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Church Name</p>
+                          <p className="text-sm text-navy-900">{selectedApp.church_name || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Denomination</p>
+                          <p className="text-sm text-navy-900">{selectedApp.denomination || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Pastor Name</p>
+                          <p className="text-sm text-navy-900">{selectedApp.pastor_name || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Born Again</p>
+                          <p className="text-sm text-navy-900">{selectedApp.born_again || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Water Baptism Date</p>
+                          <p className="text-sm text-navy-900">{selectedApp.water_baptism_date || '—'}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <p className="text-xs text-slate-400 mb-0.5">Church Involvement</p>
+                          <p className="text-sm text-navy-900">{selectedApp.church_involvement || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Academic Information */}
+                    <div>
+                      <h4 className="font-semibold text-navy-900 text-sm mb-3 flex items-center gap-2"><GraduationCap className="w-4 h-4 text-gold-500" /> Academic Information</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Course Applied</p>
+                          <p className="text-sm font-medium text-navy-900">{selectedApp.course_applied || selectedApp.applying_for || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Previous Education</p>
+                          <p className="text-sm text-navy-900">{selectedApp.previous_education || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Mother Tongue</p>
+                          <p className="text-sm text-navy-900">{selectedApp.mother_tongue || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Other Languages</p>
+                          <p className="text-sm text-navy-900">{selectedApp.other_languages || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Calling & Purpose */}
+                    <div>
+                      <h4 className="font-semibold text-navy-900 text-sm mb-3 flex items-center gap-2"><Sparkles className="w-4 h-4 text-gold-500" /> Calling & Purpose</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Calling Aim</p>
+                          <p className="text-sm text-navy-900">{selectedApp.calling_aim || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Statement of Purpose</p>
+                          <p className="text-sm text-navy-900 leading-relaxed">{selectedApp.statement_of_purpose || selectedApp.statement || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fee Information */}
+                    <div>
+                      <h4 className="font-semibold text-navy-900 text-sm mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4 text-gold-500" /> Fee Information</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Can Pay Fees</p>
+                          <p className="text-sm text-navy-900">{selectedApp.can_pay_fees === true ? 'Yes' : selectedApp.can_pay_fees === false ? 'No' : '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Fee Sponsor</p>
+                          <p className="text-sm text-navy-900">{selectedApp.fee_sponsor || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Guardian Name</p>
+                          <p className="text-sm text-navy-900">{selectedApp.guardian_name || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Parent Occupation</p>
+                          <p className="text-sm text-navy-900">{selectedApp.parent_occupation || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-0.5">Annual Income</p>
+                          <p className="text-sm text-navy-900">{selectedApp.annual_income || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Admin Actions */}
+                    <div className="border-t border-slate-100 pt-4 space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="label">Status</label>
+                          <select value={appForm.status} onChange={(e) => setAppForm((f) => ({ ...f, status: e.target.value }))} className="input-field">
+                            <option value="pending">Pending</option>
+                            <option value="reviewed">Reviewed</option>
+                            <option value="accepted">Accepted</option>
+                            <option value="rejected">Rejected</option>
+                          </select>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-400 mb-1.5">Submitted</p>
+                          <p className="text-sm text-navy-900">{new Date(selectedApp.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="label">Review Notes</label>
+                        <textarea value={appForm.review_notes} onChange={(e) => setAppForm((f) => ({ ...f, review_notes: e.target.value }))} rows={3} className="input-field resize-none" placeholder="Add notes about this application..." />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button type="submit" disabled={savingApp} className="btn-primary flex-1">
+                        {savingApp ? 'Saving...' : 'Save Changes'}
+                      </button>
+                      <button type="button" onClick={() => setShowAppModal(false)} className="btn-secondary">Cancel</button>
+                      <button type="button" onClick={() => { confirmDeleteApplication(selectedApp); setShowAppModal(false); }} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg text-sm font-medium">
+                        Delete
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}
@@ -1562,6 +2158,61 @@ export default function AdminDashboard() {
                   </form>
                 </div>
 
+                {/* Hero Opacity Slider */}
+                <div className="card p-6">
+                  <div className="flex items-center gap-3 mb-1">
+                    <Image className="w-5 h-5 text-gold-600" />
+                    <h2 className="font-serif font-bold text-navy-900 text-lg">Hero Background Opacity</h2>
+                  </div>
+                  <p className="text-slate-500 text-sm mb-5">Control how transparent the hero background image is. Lower = more image visible, Higher = darker overlay.</p>
+
+                  <div className="space-y-4">
+                    {/* Live preview */}
+                    <div
+                      className="w-full h-36 rounded-xl overflow-hidden relative"
+                      style={{
+                        backgroundImage: `url('${siteSettings.find((s) => s.setting_key === 'home_hero_image')?.setting_value || 'https://images.pexels.com/photos/289737/pexels-photo-289737.jpeg?auto=compress&cs=tinysrgb&w=800'}')`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }}
+                    >
+                      <div
+                        className="absolute inset-0"
+                        style={{ backgroundColor: `rgba(17,20,64,${heroOpacity})` }}
+                      />
+                      <div className="relative z-10 h-full flex items-center justify-center">
+                        <p className="text-white font-serif text-lg font-bold text-shadow">Aizawl Bible College</p>
+                      </div>
+                      <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">
+                        Opacity: {Math.round(heroOpacity * 100)}%
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-slate-500 w-16 text-right">Transparent</span>
+                      <input
+                        type="range"
+                        min="0.3"
+                        max="0.98"
+                        step="0.01"
+                        value={heroOpacity}
+                        onChange={(e) => setHeroOpacity(parseFloat(e.target.value))}
+                        className="flex-1 accent-navy-800"
+                      />
+                      <span className="text-xs text-slate-500 w-12">Dark</span>
+                      <span className="text-sm font-mono font-semibold text-navy-900 w-12">{Math.round(heroOpacity * 100)}%</span>
+                    </div>
+
+                    <button
+                      onClick={saveHeroOpacity}
+                      disabled={heroOpacitySaving}
+                      className="btn-primary"
+                    >
+                      {heroOpacitySaving ? <><Loader className="w-4 h-4 animate-spin" /> Saving...</> : <><Check className="w-4 h-4" /> Save Opacity</>}
+                    </button>
+                  </div>
+                </div>
+
                 {/* Site Image Settings */}
                 <div className="card p-6">
                   <h2 className="font-serif font-bold text-navy-900 text-lg mb-1">Site Image Settings</h2>
@@ -1626,6 +2277,118 @@ export default function AdminDashboard() {
                       </div>
                     ))}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* PAYMENT SETTINGS */}
+            {tab === 'payment' && (
+              <div className="space-y-6">
+                <div className="card p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <CreditCard className="w-5 h-5 text-navy-700" />
+                    <h2 className="font-serif font-bold text-navy-900">Razorpay Payment Settings</h2>
+                  </div>
+
+                  {paymentSettingsSuccess && (
+                    <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg mb-4 text-green-700 text-sm">
+                      <Check className="w-4 h-4" /> Payment settings saved successfully!
+                    </div>
+                  )}
+
+                  <form onSubmit={savePaymentSettings} className="space-y-5">
+                    {/* Enable/Disable Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+                      <div>
+                        <p className="font-medium text-navy-900">Enable Razorpay Payments</p>
+                        <p className="text-sm text-slate-500 mt-0.5">Allow students to make online payments through Razorpay</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={razorpayEnabled}
+                          onChange={(e) => setRazorpayEnabled(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-navy-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-navy-700"></div>
+                      </label>
+                    </div>
+
+                    {/* API Keys Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold text-navy-900 flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-gold-500" /> API Credentials
+                      </h3>
+
+                      <div>
+                        <label className="label">Razorpay Key ID</label>
+                        <input
+                          type="text"
+                          value={razorpayKeyId}
+                          onChange={(e) => setRazorpayKeyId(e.target.value)}
+                          placeholder="rzp_live_xxxxxxxx or rzp_test_xxxxxxxx"
+                          className="input-field font-mono text-sm"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Find this in your Razorpay Dashboard under Settings &gt; API Keys</p>
+                      </div>
+
+                      <div>
+                        <label className="label">Razorpay Key Secret</label>
+                        <input
+                          type="password"
+                          value={razorpayKeySecret}
+                          onChange={(e) => setRazorpayKeySecret(e.target.value)}
+                          placeholder="Your secret key (kept secure)"
+                          className="input-field font-mono text-sm"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Keep this secret! Never share it publicly.</p>
+                      </div>
+
+                      <div>
+                        <label className="label">Webhook Secret (Optional)</label>
+                        <input
+                          type="text"
+                          value={razorpayWebhookSecret}
+                          onChange={(e) => setRazorpayWebhookSecret(e.target.value)}
+                          placeholder="For verifying webhook signatures"
+                          className="input-field font-mono text-sm"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">Used to verify payment notifications from Razorpay</p>
+                      </div>
+                    </div>
+
+                    {/* Setup Instructions */}
+                    <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                      <h4 className="text-sm font-semibold text-amber-900 mb-2">Setup Instructions</h4>
+                      <ol className="text-xs text-amber-800 space-y-1.5 list-decimal list-inside">
+                        <li>Create a Razorpay account at <a href="https://razorpay.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-900">razorpay.com</a></li>
+                        <li>Complete KYC verification for live payments</li>
+                        <li>Go to Dashboard &gt; Settings &gt; API Keys</li>
+                        <li>Generate Key ID and Key Secret</li>
+                        <li>Copy and paste them above</li>
+                        <li>Set up webhooks in Razorpay to receive payment confirmations</li>
+                      </ol>
+                    </div>
+
+                    {/* Save Button */}
+                    <div className="flex justify-end pt-4 border-t border-slate-100">
+                      <button
+                        type="submit"
+                        disabled={paymentSettingsSaving}
+                        className="btn-primary flex items-center gap-2"
+                      >
+                        {paymentSettingsSaving ? (
+                          <>
+                            <Loader className="w-4 h-4 animate-spin" /> Saving...
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-4 h-4" /> Save Payment Settings
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}
@@ -1702,6 +2465,70 @@ export default function AdminDashboard() {
           </>
         )}
       </div>
+
+      {/* Board Member Edit Modal */}
+      {editingBoardMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setEditingBoardMember(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-navy-600" />
+                <h2 className="text-lg font-serif font-bold text-navy-900">Edit Board Member</h2>
+              </div>
+              <button onClick={() => setEditingBoardMember(null)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={saveBoardMemberEdit} className="space-y-4">
+              <div>
+                <label className="label text-xs">Full Name *</label>
+                <input value={boardEditForm.name} onChange={(e) => setBoardEditForm((f) => ({ ...f, name: e.target.value }))} className="input-field" required />
+              </div>
+              <div>
+                <label className="label text-xs">Designation</label>
+                <input value={boardEditForm.designation} onChange={(e) => setBoardEditForm((f) => ({ ...f, designation: e.target.value }))} className="input-field" placeholder="e.g., Chairman, Secretary" />
+              </div>
+              <div>
+                <label className="label text-xs">Display Order</label>
+                <input type="number" value={boardEditForm.display_order} onChange={(e) => setBoardEditForm((f) => ({ ...f, display_order: parseInt(e.target.value) || 0 }))} className="input-field" />
+              </div>
+              <div>
+                <label className="label text-xs mb-1.5 block">Photo</label>
+                <div className="flex items-center gap-3">
+                  {boardEditForm.photo_url && (
+                    <div className="w-16 h-16 rounded-full overflow-hidden flex-shrink-0 border-2 border-slate-200">
+                      <img src={boardEditForm.photo_url} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <label htmlFor="board-edit-photo" className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${boardEditPhotoUploading ? 'bg-slate-100 text-slate-400' : 'bg-navy-800 text-white hover:bg-navy-700'}`}>
+                    {boardEditPhotoUploading ? <><Loader className="w-4 h-4 animate-spin" /> Uploading...</> : <><Upload className="w-4 h-4" /> {boardEditForm.photo_url ? 'Change Photo' : 'Upload Photo'}</>}
+                  </label>
+                  <input id="board-edit-photo" type="file" accept="image/*" className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const url = await uploadBoardEditPhoto(file);
+                      if (url) setBoardEditForm((f) => ({ ...f, photo_url: url }));
+                      e.target.value = '';
+                    }}
+                  />
+                  {boardEditForm.photo_url && (
+                    <button type="button" onClick={() => setBoardEditForm((f) => ({ ...f, photo_url: '' }))} className="text-red-500 hover:text-red-700 p-1">
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" disabled={savingBoardEdit || boardEditPhotoUploading} className="btn-primary flex-1 justify-center">
+                  {savingBoardEdit ? <><Loader className="w-4 h-4 animate-spin" /> Saving...</> : <><Check className="w-4 h-4" /> Save Changes</>}
+                </button>
+                <button type="button" onClick={() => setEditingBoardMember(null)} className="btn-secondary">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Graduation Modal */}
       {showGraduationModal && graduationForm && (
@@ -1845,6 +2672,10 @@ export default function AdminDashboard() {
                 <div className="sm:col-span-2">
                   <label className="label text-xs">Full Name</label>
                   <input value={facultyEditForm.full_name} onChange={(e) => setFacultyEditForm((f) => ({ ...f, full_name: e.target.value }))} className="input-field" placeholder="Full name" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="label text-xs">Current Position</label>
+                  <input value={facultyEditForm.position} onChange={(e) => setFacultyEditForm((f) => ({ ...f, position: e.target.value }))} className="input-field" placeholder="e.g., Principal, Academic Dean, Male Warden, Female Warden, Lecturer" />
                 </div>
                 <div>
                   <label className="label text-xs">Qualification</label>

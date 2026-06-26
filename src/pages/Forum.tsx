@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessageSquare, Send, Plus, X, Star, Pin, Lock, ChevronDown, ChevronUp } from 'lucide-react';
+import { MessageSquare, Send, Plus, X, Star, Pin, Lock, ChevronDown, ChevronUp, Ban } from 'lucide-react';
 import { supabase, ForumPost, ForumReply, Profile } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -80,7 +80,7 @@ function PostCard({ post, profileMap, currentProfile }: {
 
   async function submitReply(e: React.FormEvent) {
     e.preventDefault();
-    if (!replyText.trim() || !currentProfile) return;
+    if (!replyText.trim() || !currentProfile || currentProfile.is_banned) return;
     setSending(true);
     const { data, error } = await supabase.from('forum_replies').insert({
       post_id: post.id,
@@ -153,7 +153,7 @@ function PostCard({ post, profileMap, currentProfile }: {
                 </div>
               ))}
 
-              {!post.is_locked && currentProfile && (
+              {!post.is_locked && currentProfile && !currentProfile.is_banned && (
                 <form onSubmit={submitReply} className="flex items-start gap-2.5 mt-3 pt-3 border-t border-slate-200">
                   <Avatar profile={currentProfile} />
                   <div className="flex-1 flex gap-2">
@@ -169,6 +169,14 @@ function PostCard({ post, profileMap, currentProfile }: {
                     </button>
                   </div>
                 </form>
+              )}
+              {!post.is_locked && currentProfile?.is_banned && (
+                <div className="mt-3 pt-3 border-t border-slate-200">
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-center gap-2">
+                    <Ban className="w-4 h-4" />
+                    <span>Your account is banned. You cannot reply to posts.</span>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -213,7 +221,7 @@ export default function Forum() {
 
   async function createPost(e: React.FormEvent) {
     e.preventDefault();
-    if (!newTitle.trim() || !newContent.trim() || !profile) return;
+    if (!newTitle.trim() || !newContent.trim() || !profile || profile.is_banned) return;
     setCreating(true);
     const { data, error } = await supabase.from('forum_posts').insert({
       title: newTitle.trim(),
@@ -228,6 +236,8 @@ export default function Forum() {
     setCreating(false);
   }
 
+  const isBanned = profile?.is_banned ?? false;
+
   return (
     <div className="page-enter">
       {/* Hero */}
@@ -238,10 +248,16 @@ export default function Forum() {
             <h1 className="text-xl md:text-3xl font-serif font-bold text-white mb-1">Discussion Forum</h1>
             <p className="text-slate-400 text-xs md:text-sm">Connect, ask questions, and grow together.</p>
           </div>
-          {profile && (
+          {profile && !isBanned && (
             <button onClick={() => setShowNew(true)} className="btn-gold flex-shrink-0 text-xs md:text-sm">
               <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" /> New Post
             </button>
+          )}
+          {profile && isBanned && (
+            <div className="px-4 py-2 bg-red-900/50 border border-red-600 rounded-lg text-white text-xs md:text-sm flex items-center gap-2">
+              <Ban className="w-4 h-4" />
+              <span>Your account is banned from posting</span>
+            </div>
           )}
         </div>
       </section>

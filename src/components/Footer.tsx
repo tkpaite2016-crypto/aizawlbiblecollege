@@ -130,6 +130,12 @@ export default function Footer() {
           <p className="text-slate-500 text-sm">
             &copy; {new Date().getFullYear()} Aizawl Bible College. All rights reserved.
           </p>
+          <div className="flex items-center gap-4 text-xs">
+            <Link to="/terms" className="text-slate-500 hover:text-gold-400 transition-colors">Terms</Link>
+            <Link to="/privacy" className="text-slate-500 hover:text-gold-400 transition-colors">Privacy</Link>
+            <Link to="/refunds" className="text-slate-500 hover:text-gold-400 transition-colors">Refunds</Link>
+            <Link to="/shipping" className="text-slate-500 hover:text-gold-400 transition-colors">Shipping</Link>
+          </div>
           <p className="text-slate-600 text-xs">
             Assemblies of God Mizoram District
           </p>
